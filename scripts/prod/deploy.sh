@@ -359,6 +359,12 @@ nuclear_reset() {
     read -p "输入 'y' 初始化, 其他键跳过: " INIT_ENV
     if [ "$INIT_ENV" = "y" ]; then
         init_env
+        # 部署完成后删除本地生成的 .env.production 文件
+        if [ -f ".env.production" ]; then
+            echo -e "\n${BLUE}清理本地临时文件...${NC}"
+            rm -f .env.production
+            echo -e "${GREEN}✓ 已删除本地 .env.production${NC}"
+        fi
     fi
 
     
@@ -427,7 +433,9 @@ init_env() {
     
     # 2. 上传到服务器
     echo -e "\n${BLUE}📤 上传 $PROD_ENV_FILE 到服务器...${NC}"
-    scp $SSH_OPTS "$PWD/$PROD_ENV_FILE" "$SERVER_USER@$SERVER_IP:$DEST_DIR/.env"
+    # scp 使用 -P (大写) 指定端口，需要转换 SSH_OPTS
+    SCP_OPTS=$(echo "$SSH_OPTS" | sed 's/-p /-P /')
+    scp $SCP_OPTS "$PWD/$PROD_ENV_FILE" "$SERVER_USER@$SERVER_IP:$DEST_DIR/.env"
     
     echo -e "\n${GREEN}✓ 远程环境配置文件 (.env) 已更新${NC}"
     echo -e "${YELLOW}提示: 数据库/JWT 密钥已在 $PROD_ENV_FILE 中生成。管理员账号已从 .vps_config 同步。${NC}"
