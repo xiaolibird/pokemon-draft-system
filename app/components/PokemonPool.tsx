@@ -4,31 +4,14 @@
  * Displays the grid of available Pokemon with integrated filtering logic.
  */
 
-'use client'
+"use client";
 
-import { useState, useEffect, memo, useMemo } from 'react'
-import { usePokemonFilter } from '@/app/lib/hooks/usePokemonFilter'
-import { useSearchHints } from '@/app/lib/hooks/useSearchHints'
-import { PokemonCard } from './PokemonCard'
-import { TYPE_COLORS } from '@/app/lib/utils/constants'
-
-// Reference equality check for performance
-function arePropsEqual(prev: PokemonPoolProps, next: PokemonPoolProps) {
-  if (prev.isMyTurn !== next.isMyTurn) return false
-  if (prev.myPokemonCount !== next.myPokemonCount) return false
-  if (prev.pool !== next.pool) return false
-  if (prev.optimisticPendingPoolId !== next.optimisticPendingPoolId)
-    return false
-
-  const prevC = prev.contest || {}
-  const nextC = next.contest || {}
-  if (prevC.draftMode !== nextC.draftMode) return false
-  if (prevC.maxPokemonPerPlayer !== nextC.maxPokemonPerPlayer) return false
-  if (prevC.auctionBasePrice !== nextC.auctionBasePrice) return false
-  if (prevC.auctionPhase !== nextC.auctionPhase) return false
-  if (prevC.activePokemonId !== nextC.activePokemonId) return false
-  return true
-}
+import { useState, useEffect, memo, useMemo } from "react";
+import { usePokemonFilter } from "@/app/lib/hooks/usePokemonFilter";
+import { useSearchHints } from "@/app/lib/hooks/useSearchHints";
+import { PokemonCard } from "./PokemonCard";
+import { TYPE_COLORS } from "@/app/lib/utils/constants";
+import { PoolItem, Contest } from "@/app/types/draft";
 
 // ... Filter Icons ...
 function FilterIcon() {
@@ -46,7 +29,7 @@ function FilterIcon() {
         d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
       />
     </svg>
-  )
+  );
 }
 
 function SearchIcon() {
@@ -64,18 +47,20 @@ function SearchIcon() {
         d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
       />
     </svg>
-  )
+  );
 }
 
 interface PokemonPoolProps {
-  pool: any[]
-  contest: any
-  myPokemonCount: number
-  isMyTurn: boolean
-  onAction: (pokemonId: string) => void
-  className?: string
+  pool: PoolItem[];
+  contest: Contest;
+  myPokemonCount: number;
+  isMyTurn: boolean;
+  onAction: (pokemonId: string) => void;
+  className?: string;
   /** 乐观更新：正在提交的 pool id，对应卡片显示「选集中」 */
-  optimisticPendingPoolId?: string | null
+  optimisticPendingPoolId?: string | null;
+  /** 是否在桌面端显示 Tab 栏（移动端始终显示） */
+  showDesktopTabs?: boolean;
 }
 
 function PokemonPoolComponent({
@@ -84,45 +69,46 @@ function PokemonPoolComponent({
   myPokemonCount,
   isMyTurn,
   onAction,
-  className = '',
+  className = "",
   optimisticPendingPoolId = null,
+  showDesktopTabs = false,
 }: PokemonPoolProps) {
-  const [searchTerm, setSearchTerm] = useState('')
-  const placeholder = useSearchHints()
+  const [searchTerm, setSearchTerm] = useState("");
+  const placeholder = useSearchHints();
   const [types, setTypes] = useState<{
-    mode: 'AND' | 'OR'
-    include: string[]
-    exclude: string[]
-  }>({ mode: 'AND', include: [], exclude: [] })
+    mode: "AND" | "OR";
+    include: string[];
+    exclude: string[];
+  }>({ mode: "AND", include: [], exclude: [] });
   const [gens, setGens] = useState<{
-    mode: 'OR'
-    include: number[]
-    exclude: number[]
-  }>({ mode: 'OR', include: [], exclude: [] })
-  const [showFilters, setShowFilters] = useState(false)
+    mode: "OR";
+    include: number[];
+    exclude: number[];
+  }>({ mode: "OR", include: [], exclude: [] });
+  const [showFilters, setShowFilters] = useState(false);
   // Initialize random type priority for sorting on mount
   const [typePriority] = useState<string[]>(() => {
-    const t = Object.keys(TYPE_COLORS)
-    const arr = [...t]
+    const t = Object.keys(TYPE_COLORS);
+    const arr = [...t];
     for (let i = arr.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1))
-      ;[arr[i], arr[j]] = [arr[j], arr[i]]
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
     }
-    return arr
-  })
+    return arr;
+  });
 
-  const availablePool = pool.filter((p) => p.status === 'AVAILABLE')
+  const availablePool = pool.filter((p) => p.status === "AVAILABLE");
 
   const { filtered, count, totalCount } = usePokemonFilter({
     pool: availablePool,
     searchTerm,
     types,
     gens,
-    sortBy: 'type-priority',
+    sortBy: "type-priority",
     typePriority,
-  })
+  });
 
-  const [activeTier, setActiveTier] = useState<number>(0)
+  const [activeTier, setActiveTier] = useState<number>(0);
 
   const handleTypeClick = (type: string) => {
     setTypes((prev) => {
@@ -131,16 +117,16 @@ function PokemonPoolComponent({
           ...prev,
           include: prev.include.filter((t) => t !== type),
           exclude: [...prev.exclude, type],
-        }
+        };
       if (prev.exclude.includes(type))
-        return { ...prev, exclude: prev.exclude.filter((t) => t !== type) }
+        return { ...prev, exclude: prev.exclude.filter((t) => t !== type) };
       return {
         ...prev,
         include: [...prev.include, type],
         exclude: prev.exclude.filter((t) => t !== type),
-      }
-    })
-  }
+      };
+    });
+  };
 
   const handleGenClick = (g: number) => {
     setGens((prev) => {
@@ -149,73 +135,161 @@ function PokemonPoolComponent({
           ...prev,
           include: prev.include.filter((x) => x !== g),
           exclude: [...prev.exclude, g],
-        }
+        };
       if (prev.exclude.includes(g))
-        return { ...prev, exclude: prev.exclude.filter((x) => x !== g) }
+        return { ...prev, exclude: prev.exclude.filter((x) => x !== g) };
       return {
         ...prev,
         include: [...prev.include, g],
         exclude: prev.exclude.filter((x) => x !== g),
-      }
-    })
-  }
+      };
+    });
+  };
 
   const canAct =
-    isMyTurn && myPokemonCount < (contest?.maxPokemonPerPlayer || 6)
-  const mode = contest?.draftMode || 'SNAKE'
+    isMyTurn && myPokemonCount < (contest?.maxPokemonPerPlayer || 6);
+  const { draftMode: mode } = contest;
 
   // Grouping Logic for Snake Mode
   // Memoize tieredGroups to avoid recalc if filtered is stable
   const tieredGroups = useMemo(() => {
-    if (mode !== 'SNAKE') return []
+    if (mode !== "SNAKE") return [];
 
-    const groups: Record<number, typeof filtered> = {}
-    const tierMap = new Map<number, { name: string; color: string }>()
+    const groups: Record<number, typeof filtered> = {};
+    const tierMap = new Map<number, { name: string; color: string }>();
+
+    const tiersData = contest.priceTiers as any;
+
+    // 同步生成颜色（不使用 async/await，因为 useMemo 不能是 async）
+    const generateColorsSync = () => {
+      try {
+        const {
+          assignColorsToTiers,
+        } = require("@/app/lib/utils/color-generator");
+        return assignColorsToTiers;
+      } catch {
+        return null;
+      }
+    };
+    const assignColorsToTiers = generateColorsSync();
 
     // Try to map from contest price tiers if available
-    if (contest?.priceTiers?.tiers) {
-      contest.priceTiers.tiers.forEach((t: any) => {
-        tierMap.set(t.price, { name: t.name, color: t.color })
-      })
-    } else if (Array.isArray(contest?.priceTiers)) {
-      contest.priceTiers.forEach((t: any) => {
-        tierMap.set(t.price, { name: t.name, color: t.color })
-      })
+    // priceTiers 可能是 { tiers: [...] } 或直接是数组
+    if (tiersData) {
+      let tierList: any[] = [];
+
+      if (tiersData.tiers && Array.isArray(tiersData.tiers)) {
+        tierList = tiersData.tiers;
+      } else if (Array.isArray(tiersData)) {
+        tierList = tiersData;
+      }
+
+      // Debug: Log the actual structure
+      if (process.env.NODE_ENV === "development") {
+        console.log("[PokemonPool] priceTiers data:", tiersData);
+        console.log("[PokemonPool] tierList:", tierList);
+      }
+
+      tierList.forEach((t: any) => {
+        if (t && t.price != null) {
+          const price = Number(t.price);
+          const name = t.name || `${price} G`;
+          tierMap.set(price, { name, color: t.color || "" });
+        }
+      });
+
+      // 如果有些 tiers 没有颜色，使用颜色生成器生成
+      if (tierList.length > 0 && assignColorsToTiers) {
+        const tiersForColorGen = tierList.map((t: any) => ({
+          price: Number(t.price),
+          color: t.color,
+        }));
+        const colorsGenerated = assignColorsToTiers(tiersForColorGen);
+        colorsGenerated.forEach((cg: { price: number; color: string }) => {
+          const existing = tierMap.get(cg.price);
+          if (existing) {
+            // 如果已有有效颜色，保留；否则使用生成的颜色
+            const defaultColors = ["#6b7280", "#3b82f6", "#9ca3af", ""];
+            const isValidColor =
+              existing.color &&
+              !defaultColors.includes(existing.color) &&
+              /^#[0-9A-Fa-f]{6}$/.test(existing.color);
+            tierMap.set(cg.price, {
+              name: existing.name,
+              color: isValidColor ? existing.color : cg.color,
+            });
+          } else {
+            tierMap.set(cg.price, { name: `${cg.price} G`, color: cg.color });
+          }
+        });
+      }
     }
 
     filtered.forEach((p) => {
-      const price = p.basePrice || 0
-      if (!groups[price]) groups[price] = []
-      groups[price].push(p)
-    })
+      const price = p.basePrice || 0;
+      if (!groups[price]) groups[price] = [];
+      groups[price].push(p);
+    });
 
     return Object.entries(groups)
       .sort((a, b) => Number(b[0]) - Number(a[0])) // Descending price
       .map(([priceStr, items]) => {
-        const price = Number(priceStr)
-        const meta = tierMap.get(price) || {
-          name: `${price} G`,
-          color: '#6b7280',
-        } // Default gray
-        return { price, items, ...meta }
-      })
-  }, [mode, filtered, contest?.priceTiers])
+        const price = Number(priceStr);
+        // 首先尝试从 tierMap 获取（通过 price 直接匹配）
+        let meta = tierMap.get(price);
+
+        // 如果 tierMap 中没有，尝试从 tiersData 中查找
+        if (!meta && tiersData) {
+          const tierList = Array.isArray(tiersData)
+            ? tiersData
+            : tiersData.tiers;
+          if (tierList && Array.isArray(tierList)) {
+            const tier = tierList.find((t: any) => Number(t.price) === price);
+            if (tier && tier.color) {
+              meta = {
+                name: tier.name || `${price} G`,
+                color: tier.color,
+              };
+            }
+          }
+        }
+
+        // 如果还是没有找到，使用默认值
+        if (!meta) {
+          meta = {
+            name: `${price} G`,
+            color: "#3b82f6", // Default blue
+          };
+        }
+
+        // Debug: Log tier info
+        if (process.env.NODE_ENV === "development") {
+          console.log(`[PokemonPool] Tier ${price}:`, {
+            name: meta.name,
+            color: meta.color,
+            itemsCount: items.length,
+          });
+        }
+
+        return { price, items, ...meta };
+      });
+  }, [mode, filtered, contest.priceTiers]);
 
   // Initialize Active Tier (Mobile Tab)
   useEffect(() => {
-    if (mode === 'SNAKE' && tieredGroups.length > 0 && activeTier === 0) {
-      const saved = localStorage.getItem('activePriceTier')
+    if (mode === "SNAKE" && tieredGroups.length > 0 && activeTier === 0) {
+      const saved = localStorage.getItem("activePriceTier");
       if (saved) {
-        const found = tieredGroups.find((t) => t.price === Number(saved))
+        const found = tieredGroups.find((t) => t.price === Number(saved));
         if (found) {
-          setActiveTier(found.price)
-          return
+          setActiveTier(found.price);
+          return;
         }
       }
       // Default to highest tier if nothing saved or saved tier not found
-      setActiveTier(tieredGroups[0].price)
+      setActiveTier(tieredGroups[0].price);
     }
-  }, [tieredGroups, mode, activeTier])
+  }, [tieredGroups, mode, activeTier]);
 
   return (
     <div
@@ -238,7 +312,7 @@ function PokemonPoolComponent({
           </div>
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`rounded-xl p-2 transition ${showFilters ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'}`}
+            className={`rounded-xl p-2 transition ${showFilters ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}
           >
             <FilterIcon />
           </button>
@@ -257,37 +331,37 @@ function PokemonPoolComponent({
                   onClick={() =>
                     setTypes((prev) => ({
                       ...prev,
-                      mode: prev.mode === 'AND' ? 'OR' : 'AND',
+                      mode: prev.mode === "AND" ? "OR" : "AND",
                     }))
                   }
                   className="rounded bg-gray-100 px-2 py-0.5 text-[10px] font-black text-gray-500 hover:text-blue-500 dark:bg-gray-800"
                 >
-                  模式:{' '}
-                  {types.mode === 'AND' ? '同时满足 (AND)' : '任一满足 (OR)'}
+                  模式:{" "}
+                  {types.mode === "AND" ? "同时满足 (AND)" : "任一满足 (OR)"}
                 </button>
               </div>
               <div className="flex flex-wrap gap-1">
                 {Object.keys(TYPE_COLORS).map((t) => {
                   const state = types.include.includes(t)
-                    ? 'include'
+                    ? "include"
                     : types.exclude.includes(t)
-                      ? 'exclude'
-                      : 'none'
+                      ? "exclude"
+                      : "none";
                   return (
                     <button
                       key={t}
                       onClick={() => handleTypeClick(t)}
                       className={`rounded border px-2 py-1 text-[10px] font-bold transition-all ${
-                        state === 'include'
-                          ? 'scale-105 border-blue-600 bg-blue-500 text-white shadow-md'
-                          : state === 'exclude'
-                            ? 'border-red-600 bg-red-500 text-white opacity-50'
-                            : 'border-transparent bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
+                        state === "include"
+                          ? "scale-105 border-blue-600 bg-blue-500 text-white shadow-md"
+                          : state === "exclude"
+                            ? "border-red-600 bg-red-500 text-white opacity-50"
+                            : "border-transparent bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
                       } `}
                     >
                       {t}
                     </button>
-                  )
+                  );
                 })}
               </div>
             </div>
@@ -300,25 +374,25 @@ function PokemonPoolComponent({
               <div className="flex flex-wrap gap-1">
                 {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((g) => {
                   const state = gens.include.includes(g)
-                    ? 'include'
+                    ? "include"
                     : gens.exclude.includes(g)
-                      ? 'exclude'
-                      : 'none'
+                      ? "exclude"
+                      : "none";
                   return (
                     <button
                       key={g}
                       onClick={() => handleGenClick(g)}
                       className={`rounded border px-3 py-1 text-[10px] font-bold transition-all ${
-                        state === 'include'
-                          ? 'scale-105 border-green-600 bg-green-500 text-white shadow-md'
-                          : state === 'exclude'
-                            ? 'border-red-600 bg-red-500 text-white opacity-50'
-                            : 'border-transparent bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
+                        state === "include"
+                          ? "scale-105 border-green-600 bg-green-500 text-white shadow-md"
+                          : state === "exclude"
+                            ? "border-red-600 bg-red-500 text-white opacity-50"
+                            : "border-transparent bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
                       } `}
                     >
                       Gen {g}
                     </button>
-                  )
+                  );
                 })}
               </div>
             </div>
@@ -336,9 +410,9 @@ function PokemonPoolComponent({
             gens.exclude.length > 0) && (
             <button
               onClick={() => {
-                setTypes({ mode: 'AND', include: [], exclude: [] })
-                setGens({ mode: 'OR', include: [], exclude: [] })
-                setSearchTerm('')
+                setTypes({ mode: "AND", include: [], exclude: [] });
+                setGens({ mode: "OR", include: [], exclude: [] });
+                setSearchTerm("");
               }}
               className="text-blue-500 hover:underline"
             >
@@ -349,9 +423,9 @@ function PokemonPoolComponent({
       </div>
 
       {/* Grid or Tiered View */}
-      <div className="custom-scrollbar flex-1 overflow-y-auto p-4 md:p-6">
+      <div className="custom-scrollbar flex-1 overflow-y-auto">
         {filtered.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center text-gray-400 opacity-50">
+          <div className="flex h-full flex-col items-center justify-center p-4 text-gray-400 opacity-50 md:p-6">
             <svg
               className="mb-4 h-16 w-16 text-gray-300 dark:text-gray-700"
               fill="none"
@@ -367,31 +441,81 @@ function PokemonPoolComponent({
             </svg>
             <p className="font-bold">未找到匹配的宝可梦</p>
           </div>
-        ) : mode === 'SNAKE' ? (
+        ) : mode === "SNAKE" ? (
           <>
-            {/* Mobile Tabs for Snake Mode */}
-            <div className="no-scrollbar sticky top-0 z-20 -mx-4 mb-4 overflow-x-auto border-b border-gray-200 bg-white/95 px-4 backdrop-blur md:hidden dark:border-white/5 dark:bg-gray-900/95">
+            {/* Desktop Tabs (if showDesktopTabs is true) */}
+            {showDesktopTabs && (
+              <div className="no-scrollbar sticky top-0 z-50 mb-4 hidden overflow-x-auto border-b border-gray-200 bg-white px-4 py-2 shadow-md md:flex dark:border-white/5 dark:bg-gray-900">
+                <div className="flex gap-2 py-2">
+                  {tieredGroups.map((tier) => (
+                    <button
+                      key={tier.price}
+                      onClick={() => {
+                        setActiveTier(tier.price);
+                        localStorage.setItem(
+                          "activePriceTier",
+                          String(tier.price),
+                        );
+                      }}
+                      className={`flex-shrink-0 rounded-lg border px-3 py-1.5 text-xs font-bold transition-all ${
+                        activeTier === tier.price
+                          ? "text-white shadow-sm"
+                          : "border-transparent bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+                      }`}
+                      style={
+                        activeTier === tier.price
+                          ? {
+                              backgroundColor: tier.color || "#3b82f6",
+                              borderColor: tier.color || "#3b82f6",
+                              color: "#ffffff",
+                            }
+                          : {}
+                      }
+                    >
+                      <div className="flex items-center gap-1.5">
+                        {activeTier !== tier.price && (
+                          <div
+                            className="h-1.5 w-1.5 rounded-full"
+                            style={{ backgroundColor: tier.color }}
+                          ></div>
+                        )}
+                        <span>
+                          {tier.name} ({tier.price} G)
+                        </span>
+                        <span className="ml-0.5 text-[10px] opacity-60">
+                          ({tier.items.length})
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Mobile Tabs (always shown) */}
+            <div className="no-scrollbar sticky top-0 z-50 mb-4 overflow-x-auto border-b border-gray-200 bg-white px-4 py-2 shadow-md md:hidden dark:border-white/5 dark:bg-gray-900">
               <div className="flex gap-2 py-2">
                 {tieredGroups.map((tier) => (
                   <button
                     key={tier.price}
                     onClick={() => {
-                      setActiveTier(tier.price)
+                      setActiveTier(tier.price);
                       localStorage.setItem(
-                        'activePriceTier',
+                        "activePriceTier",
                         String(tier.price),
-                      )
+                      );
                     }}
                     className={`flex-shrink-0 rounded-lg border px-3 py-1.5 text-xs font-bold transition-all ${
                       activeTier === tier.price
-                        ? 'border-blue-600 bg-blue-500 text-white shadow-sm'
-                        : 'border-transparent bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
-                    } `}
+                        ? "text-white shadow-sm"
+                        : "border-transparent bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+                    }`}
                     style={
                       activeTier === tier.price
                         ? {
-                            backgroundColor: tier.color,
-                            borderColor: tier.color,
+                            backgroundColor: tier.color || "#3b82f6",
+                            borderColor: tier.color || "#3b82f6",
+                            color: "#ffffff",
                           }
                         : {}
                     }
@@ -403,7 +527,9 @@ function PokemonPoolComponent({
                           style={{ backgroundColor: tier.color }}
                         ></div>
                       )}
-                      {tier.name}
+                      <span>
+                        {tier.name} ({tier.price} G)
+                      </span>
                       <span className="ml-0.5 text-[10px] opacity-60">
                         ({tier.items.length})
                       </span>
@@ -413,12 +539,20 @@ function PokemonPoolComponent({
               </div>
             </div>
 
-            {/* Desktop: All Tiers List | Mobile: Active Tier Only */}
-            <div className="space-y-6 pb-20 md:pb-0">
+            {/* Desktop: All Tiers (if no desktop tabs) | Active Tier Only (if desktop tabs) | Mobile: Active Tier Only */}
+            <div className="space-y-6 p-4 pb-20 md:p-6 md:pb-0">
               {tieredGroups.map((tier) => (
                 <div
                   key={tier.price}
-                  className={`${activeTier === tier.price ? 'block' : 'hidden md:block'} animate-in fade-in space-y-3 duration-300`}
+                  className={`${
+                    // 移动端：只显示当前选中的 tier
+                    // 桌面端：如果 showDesktopTabs=true，只显示当前选中的 tier；如果 showDesktopTabs=false，显示所有 tiers
+                    activeTier === tier.price
+                      ? "block"
+                      : showDesktopTabs
+                        ? "hidden"
+                        : "hidden md:block"
+                  } animate-in fade-in space-y-3 duration-300`}
                 >
                   <div className="mb-2 hidden pl-1 text-xs font-bold tracking-widest text-gray-400 uppercase md:block">
                     {tier.name} ({tier.price} G) - {tier.items.length} 只
@@ -441,7 +575,7 @@ function PokemonPoolComponent({
             </div>
           </>
         ) : (
-          <div className="grid grid-cols-3 gap-2 pb-20 sm:grid-cols-4 md:grid-cols-3 md:gap-4 md:pb-0 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+          <div className="grid grid-cols-3 gap-2 p-4 pb-20 sm:grid-cols-4 md:grid-cols-3 md:gap-4 md:p-6 md:pb-0 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
             {filtered.map((item) => (
               <PokemonCard
                 key={item.id}
@@ -456,7 +590,7 @@ function PokemonPoolComponent({
         )}
       </div>
     </div>
-  )
+  );
 }
 
-export const PokemonPool = memo(PokemonPoolComponent, arePropsEqual)
+export const PokemonPool = memo(PokemonPoolComponent);

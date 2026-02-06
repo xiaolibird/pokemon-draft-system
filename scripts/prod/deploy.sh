@@ -359,6 +359,12 @@ nuclear_reset() {
     read -p "输入 'y' 初始化, 其他键跳过: " INIT_ENV
     if [ "$INIT_ENV" = "y" ]; then
         init_env
+        # 部署完成后删除本地生成的 .env.production 文件
+        if [ -f ".env.production" ]; then
+            echo -e "\n${BLUE}清理本地临时文件...${NC}"
+            rm -f .env.production
+            echo -e "${GREEN}✓ 已删除本地 .env.production${NC}"
+        fi
     fi
 
     
