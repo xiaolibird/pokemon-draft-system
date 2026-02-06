@@ -1,0 +1,36 @@
+# 仅用于本地开发。生产请使用 docker-compose.prod.yml 并通过 .env 配置 DB_PASS 等。
+services:
+  init:
+    build:
+      context: .
+      target: builder
+    environment:
+      - DATABASE_URL=postgresql://pokemon_admin:${DB_PASS:-dev_local_only}@db:5432/pokemon_draft
+    depends_on:
+      - db
+
+  web:
+    build: .
+    ports:
+      - '3000:3000'
+    environment:
+      - DATABASE_URL=postgresql://pokemon_admin:${DB_PASS:-dev_local_only}@db:5432/pokemon_draft
+      - NODE_ENV=production
+    depends_on:
+      - db
+    restart: always
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: pokemon_admin
+      POSTGRES_PASSWORD: ${DB_PASS:-dev_local_only}
+      POSTGRES_DB: pokemon_draft
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+
+volumes:
+  postgres_data:

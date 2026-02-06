@@ -1,0 +1,82 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Testing
+coverage
+.nyc_output
+
+# Next.js
+.next/
+out/
+build/
+dist/
+
+# Build / Cache
+.eslintcache
+*.tsbuildinfo
+.turbo/
+.cache/
+
+# Misc
+.DS_Store
+Thumbs.db
+*.pem
+*.key
+*.orig
+*.bak
+
+# Local Env Files
+.env
+.env*.local
+.env.production
+.env.development
+.env.test
+.env.*.backup
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+*.log
+
+# Docker
+postgres_data/
+
+# Temporary / Agent / System Files
+.agent/
+temp_*
+*.tmp
+.vercel
+
+# Editor
+.vscode
+.idea
+*.swp
+*.swo
+
+# Project Specific
+.rsync-exclude
+scripts/test/
+scripts/deprecated/
+scripts/data/deprecated/
+scripts/misc/
+scripts/occasional/
+scripts/adhoc/
+.vps_config
+# 本地开发用，AI 生成报告目录，不提交
+reports/
+test-results/
+.husky/
+.cursor/
+.prettierrc
+.prettierignore
+# .cursorrules: 项目级 AI 规则，可选提交以统一团队；忽略则每人本地维护
+.cursorrules
+
+
+# 根目录一次性迁移脚本（含本地路径，勿提交）
+migrate_*.py
+migrate_*.sh

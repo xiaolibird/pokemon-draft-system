@@ -1,0 +1,47 @@
+/* Pokemon Icons Sprite Sheet */
+.picon {
+  display: inline-block;
+  width: 40px;
+  height: 30px;
+  background-image: url('/pokesprite.png');
+  background-repeat: no-repeat;
+  background-size: 480px 4080px;
+  /* Actual sprite sheet dimensions */
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+  vertical-align: middle;
+}
+
+/* Icon sizing variants - scale proportionally */
+.picon-xs {
+  width: 24px;
+  height: 18px;
+  /* Scale factor: 24/40 = 0.6 */
+  background-size: 288px 2448px;
+  /* 480*0.6 x 4080*0.6 */
+}
+
+.picon-sm {
+  width: 32px;
+  height: 24px;
+  /* Scale factor: 32/40 = 0.8 */
+  background-size: 384px 3264px;
+  /* 480*0.8 x 4080*0.8 */
+}
+
+.picon-lg {
+  width: 60px;
+  height: 45px;
+  /* Scale factor: 60/40 = 1.5 */
+  background-size: 720px 6120px;
+  /* 480*1.5 x 4080*1.5 */
+}
+
+.picon-xl {
+  width: 80px;
+  height: 60px;
+  /* Scale factor: 80/40 = 2.0 */
+  background-size: 960px 8160px;
+  /* 480*2.0 x 4080*2.0 */
+}

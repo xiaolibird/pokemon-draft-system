@@ -1,0 +1,12 @@
+node_modules
+.next
+out
+public/dist
+.git
+.gitignore
+.dockerignore
+*.md
+.vps_config*
+scripts/temp_*
+temp_*
+postgres_data

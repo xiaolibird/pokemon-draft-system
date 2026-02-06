@@ -1,0 +1,106 @@
+@import 'tailwindcss';
+
+@variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+.dark {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* =========================================
+   High Contrast Input Styles
+   ========================================= */
+
+/* Adaptive Input (Light/Dark aware) */
+.input-primary {
+  width: 100%;
+  background-color: transparent;
+  /* Changed from #ffffff */
+  border: 1px solid #e5e7eb;
+  /* gray-200 */
+  color: #374151;
+  /* gray-700 (Softer than black) */
+  outline: none;
+  transition: all 0.2s;
+}
+
+.dark .input-primary {
+  background-color: transparent;
+  /* Changed from #1f2937 */
+  border-color: #374151;
+  /* gray-700 */
+  color: #d1d5db;
+  /* gray-300 (Softer than pure white, close to user's suggestion) */
+}
+
+/* For placeholder text specifically */
+.input-primary::placeholder {
+  color: #6b7280;
+  /* gray-500, slightly darker */
+}
+
+.input-primary:focus {
+  border-color: #3b82f6;
+  /* blue-500 */
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+/* Dark-Only Context Input (e.g. Trade Center / Login Pages with forced dark bg) */
+.input-dark-only {
+  width: 100%;
+  background-color: transparent;
+  /* Changed from #1f2937 */
+  border: 1px solid #374151;
+  /* gray-700 */
+  color: #d1d5db;
+  /* gray-300 */
+  outline: none;
+  transition: all 0.2s;
+}
+
+.input-dark-only::placeholder {
+  color: #9ca3af;
+  /* gray-400 */
+}
+
+.input-dark-only:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+}
+
+/* =========================================
+   Version Checker Animation
+   ========================================= */
+@keyframes slide-up {
+  from {
+    transform: translateY(100px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.4s ease-out;
+}

@@ -1,0 +1,16 @@
+# VPS 连接配置示例
+# 复制此文件为 .vps_config 并填入您的信息
+
+# VPS 公网 IP (必填)
+SERVER_IP="YOUR_VPS_IP_HERE"
+
+# VPS 用户名 (选填，默认为 ubuntu)
+SERVER_USER="ubuntu"
+
+# SSH 私钥路径 (选填，如果已加载到 ssh-agent 可留空)
+# 示例: ~/.ssh/gcp_key
+SSH_KEY_PATH=""
+
+# 可选：生产端管理员账号（deploy 与压力测试脚本会读取，用于重置管理员/登录）
+# ADMIN_USERNAME="admin"
+# ADMIN_PASSWORD="your_secure_password"

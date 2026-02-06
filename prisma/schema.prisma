@@ -1,0 +1,170 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id           String    @id @default(uuid())
+  username     String    @unique
+  passwordHash String
+  createdAt    DateTime  @default(now())
+  contests     Contest[]
+}
+
+model Contest {
+  id                      String        @id @default(uuid())
+  name                    String
+  status                  String
+  ruleSet                 String
+  playerTokens            Int           @default(100)
+  maxPokemonPerPlayer     Int           @default(6)
+  draftMode               String
+  auctionBasePrice        Int           @default(10)
+  priceTiers              Json?
+  currentTurn             Int           @default(0)
+  draftOrder              String[]      @default([])
+  auctionPhase            String?
+  activePokemonId         String?
+  auctionBidDuration      Int?          @default(30)
+  highestBid              Int?
+  highestBidderId         String?
+  bidEndTime              DateTime?
+  showPlayerPokemon       Boolean       @default(true)
+  playerDisplayStyle      String        @default("minimal")
+  allowTradingDuringDraft Boolean       @default(false)
+  createdAt               DateTime      @default(now())
+  adminId                 String
+  isPaused                Boolean       @default(false)
+  pausedTimeRemaining     Int?
+  version                 Int           @default(0)
+  admin                   Admin         @relation(fields: [adminId], references: [id])
+  draftActions            DraftAction[]
+  players                 Player[]
+  pokemonPool             PokemonPool[]
+}
+
+model Player {
+  id             String         @id @default(uuid())
+  contestId      String
+  username       String
+  accessKey      String         @unique
+  tokens         Int            @default(0)
+  pickOrder      Int?
+  isReady        Boolean        @default(false)
+  lastSeenAt     DateTime?
+
+  draftActions   DraftAction[]
+  ownedPokemon   OwnedPokemon[]
+  contest        Contest        @relation(fields: [contestId], references: [id])
+  sentTrades     Trade[]        @relation("SentTrades")
+  receivedTrades Trade[]        @relation("ReceivedTrades")
+}
+
+model Pokemon {
+  id            String         @id
+  num           Int
+  name          String
+  nameCn        String?
+  types         String[]
+  hp            Int
+  atk           Int
+  def           Int
+  spa           Int
+  spd           Int
+  spe           Int
+  bst           Int            @default(0)
+  gen           Int            @default(1)
+  abilities     String[]
+  heightm       Float
+  weightkg      Float
+  color         String
+  eggGroups     String[]
+  isForme       Boolean        @default(false)
+  baseSpecies   String?
+  isNonstandard String?
+  tags          String[]       @default([])
+  tier          String?
+  owned         OwnedPokemon[]
+  pools         PokemonPool[]
+
+  @@index([bst])
+  @@index([gen])
+  @@index([tier])
+  @@index([tags])
+}
+
+model PokemonPool {
+  id        String  @id @default(uuid())
+  contestId String
+  pokemonId String
+  basePrice Int     @default(0)
+  status    String
+  contest   Contest @relation(fields: [contestId], references: [id])
+  pokemon   Pokemon @relation(fields: [pokemonId], references: [id])
+
+  @@index([contestId, status])
+  @@index([contestId, pokemonId])
+}
+
+model OwnedPokemon {
+  id            String  @id @default(uuid())
+  playerId      String
+  pokemonId     String
+  purchasePrice Int?
+  player        Player  @relation(fields: [playerId], references: [id])
+  pokemon       Pokemon @relation(fields: [pokemonId], references: [id])
+
+  @@unique([playerId, pokemonId])
+  @@index([playerId])
+  @@index([pokemonId])
+}
+
+model Trade {
+  id                 String   @id @default(uuid())
+  fromPlayerId       String
+  toPlayerId         String
+  offeredPokemonId   String?
+  requestedPokemonId String?
+  offeredTokens      Int      @default(0)
+  requestedTokens    Int      @default(0)
+  swapPickOrder      Boolean  @default(false)
+  status             String
+  createdAt          DateTime @default(now())
+  fromPlayer         Player   @relation("SentTrades", fields: [fromPlayerId], references: [id])
+  toPlayer           Player   @relation("ReceivedTrades", fields: [toPlayerId], references: [id])
+}
+
+model DraftAction {
+  id         String   @id @default(uuid())
+  contestId  String
+  playerId   String?
+  actionType String
+  pokemonId  String?
+  details    Json?
+  timestamp  DateTime @default(now())
+  contest    Contest  @relation(fields: [contestId], references: [id])
+  player     Player?  @relation(fields: [playerId], references: [id])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  userType   String
+  action     String
+  resource   String?
+  resourceId String?
+  ipAddress  String?
+  userAgent  String?
+  details    Json?
+  status     String
+  timestamp  DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([timestamp])
+  @@index([resource, resourceId])
+}

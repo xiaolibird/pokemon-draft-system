@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Contest" ADD COLUMN "version" INTEGER NOT NULL DEFAULT 0;
