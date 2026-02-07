@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextResponse } from "next/server";
 
 /**
  * 版本检测 API
@@ -7,8 +7,8 @@ import { NextResponse } from 'next/server'
 export async function GET() {
   // 从环境变量读取构建版本（部署时注入）
   const buildVersion =
-    process.env.BUILD_VERSION || process.env.NEXT_PUBLIC_BUILD_VERSION || 'dev'
-  const buildTime = process.env.BUILD_TIME || new Date().toISOString()
+    process.env.BUILD_VERSION || process.env.NEXT_PUBLIC_BUILD_VERSION || "dev";
+  const buildTime = process.env.BUILD_TIME || new Date().toISOString();
 
   return NextResponse.json(
     {
@@ -18,9 +18,9 @@ export async function GET() {
     },
     {
       headers: {
-        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
-        Pragma: 'no-cache',
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        Pragma: "no-cache",
       },
     },
-  )
+  );
 }

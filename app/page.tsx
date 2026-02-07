@@ -1,9 +1,9 @@
-import Link from 'next/link'
-import AuthLayout from '@/app/components/AuthLayout'
+import Link from "next/link";
+import AuthLayout from "@/app/components/AuthLayout";
 
 export default function Home() {
   const buildVersion =
-    process.env.BUILD_VERSION || process.env.NEXT_PUBLIC_BUILD_VERSION || 'dev'
+    process.env.BUILD_VERSION || process.env.NEXT_PUBLIC_BUILD_VERSION || "dev";
   return (
     <AuthLayout>
       <div className="animate-in fade-in zoom-in relative mx-4 flex w-full max-w-4xl flex-col items-center rounded-3xl border border-white/10 bg-white/5 p-12 shadow-2xl backdrop-blur-xl duration-500">
@@ -28,12 +28,12 @@ export default function Home() {
                 className="absolute inset-0 bg-cover bg-no-repeat transition-all duration-700 ease-out group-hover:scale-110 group-hover:brightness-125"
                 style={{
                   backgroundImage: "url('/images/indeedee.webp')",
-                  backgroundPosition: 'top -20px left -20px', // Manual offset
+                  backgroundPosition: "top -20px left -20px", // Manual offset
                   maskImage:
-                    'radial-gradient(circle at top left, black 0%, transparent 60%)',
+                    "radial-gradient(circle at top left, black 0%, transparent 60%)",
                   WebkitMaskImage:
-                    'radial-gradient(circle at top left, black 0%, transparent 60%)',
-                  transformOrigin: 'top left',
+                    "radial-gradient(circle at top left, black 0%, transparent 60%)",
+                  transformOrigin: "top left",
                 }}
               ></div>
               {/* Background Color Overlay for integration */}
@@ -78,12 +78,12 @@ export default function Home() {
                 className="absolute inset-0 bg-cover bg-no-repeat transition-all duration-700 ease-out group-hover:scale-110 group-hover:brightness-125"
                 style={{
                   backgroundImage: "url('/images/ogerpon.webp')",
-                  backgroundPosition: 'top -20px right -20px', // Manual offset using background-position
+                  backgroundPosition: "top -20px right -20px", // Manual offset using background-position
                   maskImage:
-                    'radial-gradient(circle at top right, black 0%, transparent 60%)',
+                    "radial-gradient(circle at top right, black 0%, transparent 60%)",
                   WebkitMaskImage:
-                    'radial-gradient(circle at top right, black 0%, transparent 60%)',
-                  transformOrigin: 'top right',
+                    "radial-gradient(circle at top right, black 0%, transparent 60%)",
+                  transformOrigin: "top right",
                 }}
               ></div>
               {/* Background Color Overlay for integration */}
@@ -121,5 +121,5 @@ export default function Home() {
         </div>
       </div>
     </AuthLayout>
-  )
+  );
 }

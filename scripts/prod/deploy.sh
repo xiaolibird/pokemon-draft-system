@@ -188,8 +188,8 @@ remote_exec() {
 hot_reload() {
     echo -e "\n${CYAN}🔥 热重载部署 (仅重建应用容器)${NC}"
     
-    # 生成构建版本号（Git hash + 时间戳）
-    local BUILD_VERSION=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+    # 生成构建版本号（优先 Tag，回退到 Hash）
+    local BUILD_VERSION=$(git describe --tags --exact-match 2>/dev/null || git rev-parse --short HEAD 2>/dev/null || echo "dev")
     local BUILD_TIME=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
     
     # 根据智能检测决定构建参数
@@ -246,42 +246,69 @@ hot_reload() {
 
 # 数据同步（更新宝可梦数据）
 data_sync() {
-    echo -e "\n${CYAN}📊 数据同步 (更新数据库和宝可梦)${NC}"
+    echo -e "\n${CYAN}📊 数据同步 (更新数据库和宝可梦，不重启应用)${NC}"
     
     local CMD="
         export CACHE_BUST=\$(date +%s)
         
-        echo '>>> 重建初始化容器...'
+        echo '>>> 重建初始化容器 (仅 init，不重建 app)...'
         sudo -E docker compose -f docker-compose.prod.yml build --no-cache init
         
         echo '>>> 执行数据同步...'
-        sudo -E docker compose -f docker-compose.prod.yml run --rm --entrypoint /bin/sh init -c '
+        # 确保 .env 文件存在，否则 docker compose 无法读取环境变量
+        if [ ! -f .env ]; then
+            echo '  ❌ 错误: .env 文件不存在'
+            echo '  💡 解决方案:'
+            echo '     1. 运行选项 8 (环境初始化) 生成 .env 文件'
+            echo '     2. 或手动创建 .env 文件（参考 .env.example）'
+            echo '     3. 或使用核弹重置 (选项 5) 并选择初始化环境'
+            exit 1
+        fi
+        # 验证 .env 文件是否包含 DATABASE_URL（init 服务通过 compose 的 env_file: .env 注入）
+        if ! grep -q '^DATABASE_URL=' .env 2>/dev/null; then
+            echo '  ❌ 错误: .env 文件中未找到 DATABASE_URL'
+            echo '  💡 请检查 .env 文件格式是否正确'
+            echo '  💡 运行选项 8 (环境初始化) 重新生成 .env 文件'
+            exit 1
+        fi
+        # 调试：确认 .env 文件位置和内容（隐藏敏感值）
+        echo '  📍 当前目录: '\$(pwd)
+        echo '  📄 .env 文件路径: '\$(pwd)/.env
+        echo '  ✅ .env 文件存在: '\$(test -f .env && echo '是' || echo '否')
+        echo '  🔍 DATABASE_URL 在 .env 中: '\$(grep -q '^DATABASE_URL=' .env && echo '是' || echo '否')
+        # compose 的 env_file: .env 会自动注入，无需命令行传 --env-file（与选项5保持一致）
+        sudo docker compose -f docker-compose.prod.yml run --rm --entrypoint /bin/sh init -c '
             set -e
-            echo \"[1/6] 应用数据库迁移...\"
-            # 尝试应用迁移，如果失败则推送架构（适用于现有数据库）
+            echo \"🔍 容器内环境变量检查:\"
+            echo \"  DATABASE_URL 已设置: \${DATABASE_URL:+是} \${DATABASE_URL:-否}\"
+            if [ -z \"\${DATABASE_URL:-}\" ]; then
+                echo \"  ❌ 错误: DATABASE_URL 未设置，无法继续\"
+                exit 1
+            fi
+            echo \"[1/5] 应用数据库迁移...\"
             npx prisma@6 migrate deploy 2>/dev/null || {
                 echo \"  ⚠ 迁移失败，使用 db push 同步架构（适用于现有数据库）\"
                 npx prisma@6 db push --accept-data-loss
             }
             
-            echo \"[2/6] 生成 Prisma Client...\"
+            echo \"[2/5] 生成 Prisma Client...\"
             npx prisma@6 generate
             
-            echo \"[3/6] 执行数据同步流程...\"
+            echo \"[3/5] 执行数据同步流程...\"
             bash scripts/core/sync-data.sh
             
-            echo \"[4/6] 确保管理员账号...\"
-            export ADMIN_USERNAME='${ADMIN_USERNAME}'
-            export ADMIN_PASSWORD='${ADMIN_PASSWORD}'
+            echo \"[4/5] 确保管理员账号...\"
             npx tsx scripts/core/admin/ensure-admin.ts
             
-            echo \"[6/6] 验证健康状态...\"
-            curl -sf http://localhost:3000/api/health > /dev/null && echo \"✓ Health check passed\" || echo \"⚠ Health check unavailable\"
+            echo \"[5/5] 数据同步完成\"
         '
+        
+        echo '>>> 清理 init 容器镜像（可选）...'
+        sudo docker image prune -f
     "
     
     remote_exec "$CMD" "数据同步"
-    echo -e "\n${GREEN}✓ 数据同步完成${NC}"
+    echo -e "\n${GREEN}✓ 数据同步完成（应用未重启）${NC}"
 }
 
 # 完整部署（数据 + 应用）- 智能路由
@@ -316,7 +343,7 @@ nuclear_reset() {
     
     ensure_vps_prereqs
     
-    local BUILD_VERSION=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+    local BUILD_VERSION=$(git describe --tags --exact-match 2>/dev/null || git rev-parse --short HEAD 2>/dev/null || echo "dev")
     local BUILD_TIME=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
     
     local CMD="
@@ -342,12 +369,26 @@ nuclear_reset() {
         sleep 10
         
         echo '>>> 初始化数据...'
-        sudo -E docker compose -f docker-compose.prod.yml run --rm --entrypoint /bin/sh init -c '
+        if [ ! -f .env ]; then
+            echo '  ❌ 错误: .env 文件不存在，无法初始化数据'
+            exit 1
+        fi
+        # 调试：确认 .env 文件位置和内容（隐藏敏感值）
+        echo '  📍 当前目录: '\$(pwd)
+        echo '  📄 .env 文件路径: '\$(pwd)/.env
+        echo '  ✅ .env 文件存在: '\$(test -f .env && echo '是' || echo '否')
+        echo '  🔍 DATABASE_URL 在 .env 中: '\$(grep -q '^DATABASE_URL=' .env && echo '是' || echo '否')
+        # compose 的 env_file: .env 会自动注入，无需命令行传 --env-file
+        sudo docker compose -f docker-compose.prod.yml run --rm --entrypoint /bin/sh init -c '
+            echo \"🔍 容器内环境变量检查:\"
+            echo \"  DATABASE_URL 已设置: \${DATABASE_URL:+是} \${DATABASE_URL:-否}\"
+            if [ -z \"\${DATABASE_URL:-}\" ]; then
+                echo \"  ❌ 错误: DATABASE_URL 未设置，无法继续\"
+                exit 1
+            fi
             npx prisma@6 db push --accept-data-loss
             npx prisma@6 generate
             bash scripts/core/sync-data.sh
-            export ADMIN_USERNAME='${ADMIN_USERNAME}'
-            export ADMIN_PASSWORD='${ADMIN_PASSWORD}'
             npx tsx scripts/core/admin/ensure-admin.ts
         '
         
