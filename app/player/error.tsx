@@ -1,18 +1,18 @@
-'use client'
+"use client";
 
-import { useEffect } from 'react'
-import Link from 'next/link'
+import { useEffect } from "react";
+import Link from "next/link";
 
 export default function PlayerError({
   error,
   reset,
 }: {
-  error: Error & { digest?: string }
-  reset: () => void
+  error: Error & { digest?: string };
+  reset: () => void;
 }) {
   useEffect(() => {
-    console.error('[Player]', error)
-  }, [error])
+    console.error("[Player]", error);
+  }, [error]);
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-6 text-gray-900 dark:bg-gray-950 dark:text-gray-100">
@@ -35,5 +35,5 @@ export default function PlayerError({
         </Link>
       </div>
     </div>
-  )
+  );
 }

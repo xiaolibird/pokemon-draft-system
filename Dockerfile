@@ -55,6 +55,25 @@ COPY scripts ./scripts
 # This layer will be cached unless source code changes
 RUN npm run build
 
+# Stage 2.5: Init tools (for data sync, no build needed)
+FROM node:20-alpine AS init
+# Install bash for scripts (sync-data.sh requires bash)
+RUN apk add --no-cache bash
+WORKDIR /app
+# Copy dependencies from deps stage
+COPY --from=deps /app/node_modules ./node_modules
+# Copy package.json for npx commands
+COPY package*.json ./
+# Copy Prisma schema and generate client
+COPY prisma ./prisma
+RUN npx prisma@6 generate
+# Copy scripts needed for data sync
+COPY scripts ./scripts
+# Copy app/lib directory (needed for data sync scripts)
+# - app/lib/data/pokemon/rulesets.ts (for extract-rulesets.ts and import-pokemon.ts)
+# - app/lib/utils/helpers.ts (for import-pokemon.ts)
+COPY app/lib ./app/lib
+
 # Stage 3: Production runner
 FROM node:20-alpine AS runner
 WORKDIR /app

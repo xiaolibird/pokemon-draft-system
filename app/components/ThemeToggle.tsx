@@ -1,17 +1,18 @@
-'use client'
+"use client";
 
-import { useTheme } from '@/app/lib/contexts/theme'
+import { useTheme } from "@/app/lib/contexts/theme";
 
 export default function ThemeToggle() {
-  const { theme, toggleTheme } = useTheme()
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <button
       onClick={toggleTheme}
       className="rounded-xl bg-gray-100 p-1.5 text-gray-800 transition-colors hover:bg-gray-200 md:p-2 dark:bg-white/5 dark:text-gray-200 dark:hover:bg-white/10"
-      title={`切换到${theme === 'dark' ? '日间' : '夜间'}模式`}
+      suppressHydrationWarning
+      title={`切换到${theme === "dark" ? "日间" : "夜间"}模式`}
     >
-      {theme === 'dark' ? (
+      {theme === "dark" ? (
         // Sun Icon for Dark Mode (click to switch to light)
         <svg
           className="h-4 w-4 md:h-5 md:w-5"
@@ -43,5 +44,5 @@ export default function ThemeToggle() {
         </svg>
       )}
     </button>
-  )
+  );
 }

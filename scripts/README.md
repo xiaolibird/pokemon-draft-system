@@ -84,7 +84,6 @@ scripts/
 │  ├─ sync-data.sh     # 数据同步编排（四阶段）
 │  ├─ admin/           # create-admin, ensure-admin
 │  └─ data/            # fetch-showdown, extract-rulesets, import-pokemon, translate-forms
-├─ data/deprecated/    # 已废弃脚本（仅供参考）
 └─ shared/
    └─ utils.sh
 ```

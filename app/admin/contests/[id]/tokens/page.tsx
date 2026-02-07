@@ -1,171 +1,172 @@
-'use client'
+"use client";
 
-import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
-import { apiFetch } from '@/app/lib/api/fetch'
-import { Header, HomeButton } from '@/app/components/Header'
-import ThemeToggle from '@/app/components/ThemeToggle'
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+import { apiFetch } from "@/app/lib/api/fetch";
+import { Header, HomeButton } from "@/app/components/Header";
+import ThemeToggle from "@/app/components/ThemeToggle";
 
 export default function ContestTokens() {
-  const { id } = useParams()
-  const [tokens, setTokens] = useState<any[]>([])
-  const [playerCount, setPlayerCount] = useState(4)
-  const [loading, setLoading] = useState(true)
-  const [generated, setGenerated] = useState(false)
+  const { id } = useParams();
+  const [tokens, setTokens] = useState<any[]>([]);
+  const [playerCount, setPlayerCount] = useState(4);
+  const [loading, setLoading] = useState(true);
+  const [generated, setGenerated] = useState(false);
 
-  const [contest, setContest] = useState<any>(null)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editName, setEditName] = useState('')
+  const [contest, setContest] = useState<any>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
 
   const startEdit = (player: any) => {
-    setEditingId(player.id)
-    setEditName(player.username || '')
-  }
+    setEditingId(player.id);
+    setEditName(player.username || "");
+  };
 
   const saveEdit = async () => {
-    if (!editingId) return
+    if (!editingId) return;
     try {
       const res = await apiFetch(`/api/admin/players/${editingId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: editName }),
-      })
+      });
       if (res.ok) {
         setTokens((prev) =>
           prev.map((p) =>
             p.id === editingId ? { ...p, username: editName } : p,
           ),
-        )
-        setEditingId(null)
+        );
+        setEditingId(null);
       } else {
-        alert('保存失败')
+        alert("保存失败");
       }
     } catch {
-      alert('网络错误')
+      alert("网络错误");
     }
-  }
+  };
 
   const downloadCSV = () => {
-    const headers = ['Username', 'Access Key', 'Tokens', 'Contest ID']
+    const headers = ["Username", "Access Key", "Tokens", "Contest ID"];
     const rows = tokens.map((t) => [
-      `"${t.username || ''}"`,
+      `"${t.username || ""}"`,
       `"${t.accessKey}"`,
       t.tokens,
       `"${t.contestId}"`,
-    ])
+    ]);
     const csvContent =
-      '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', `contest_tokens_${id}.csv`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
+      "\uFEFF" +
+      [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `contest_tokens_${id}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   useEffect(() => {
-    document.title = '宝可梦选秀系统-选手密钥'
-  }, [])
+    document.title = "宝可梦选秀系统-选手密钥";
+  }, []);
   useEffect(() => {
-    loadData()
-  }, [id])
+    loadData();
+  }, [id]);
 
   const loadData = async () => {
     try {
       // Load contest details for status
-      const contestRes = await apiFetch(`/api/admin/contests/${id}`)
+      const contestRes = await apiFetch(`/api/admin/contests/${id}`);
       if (contestRes.ok) {
-        const contestData = await contestRes.json()
-        setContest(contestData)
+        const contestData = await contestRes.json();
+        setContest(contestData);
       }
 
       // Load existing players
-      const playersRes = await apiFetch(`/api/admin/contests/${id}/players`)
+      const playersRes = await apiFetch(`/api/admin/contests/${id}/players`);
       if (playersRes.ok) {
-        const data = await playersRes.json()
+        const data = await playersRes.json();
         if (data.length > 0) {
-          setTokens(data)
-          setGenerated(true)
+          setTokens(data);
+          setGenerated(true);
         }
       }
     } catch (err) {
-      console.error(err)
+      console.error(err);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const generateTokens = async () => {
-    if (generated && !confirm('重新生成将使所有旧密钥失效，确定要继续吗？'))
-      return
+    if (generated && !confirm("重新生成将使所有旧密钥失效，确定要继续吗？"))
+      return;
 
-    setLoading(true)
+    setLoading(true);
     try {
       const res = await apiFetch(`/api/admin/contests/${id}/generate-tokens`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ playerCount }),
-      })
+      });
 
       if (res.ok) {
-        const data = await res.json()
-        setTokens(data.tokens)
-        setGenerated(true)
+        const data = await res.json();
+        setTokens(data.tokens);
+        setGenerated(true);
       } else {
-        const err = await res.json()
-        alert(err.error || '生成失败')
+        const err = await res.json();
+        alert(err.error || "生成失败");
       }
     } catch {
-      alert('网络错误')
+      alert("网络错误");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const copyToken = async (token: string) => {
     try {
       if (
-        typeof navigator !== 'undefined' &&
+        typeof navigator !== "undefined" &&
         navigator.clipboard &&
-        typeof navigator.clipboard.writeText === 'function'
+        typeof navigator.clipboard.writeText === "function"
       ) {
-        await navigator.clipboard.writeText(token)
-        alert('已复制到剪贴板')
-        return
+        await navigator.clipboard.writeText(token);
+        alert("已复制到剪贴板");
+        return;
       }
-      const textarea = document.createElement('textarea')
-      textarea.value = token
-      textarea.style.position = 'fixed'
-      textarea.style.left = '-9999px'
-      textarea.style.top = '0'
-      textarea.setAttribute('readonly', '')
-      document.body.appendChild(textarea)
-      textarea.select()
-      textarea.setSelectionRange(0, token.length)
-      const ok = document.execCommand('copy')
-      document.body.removeChild(textarea)
+      const textarea = document.createElement("textarea");
+      textarea.value = token;
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      textarea.style.top = "0";
+      textarea.setAttribute("readonly", "");
+      document.body.appendChild(textarea);
+      textarea.select();
+      textarea.setSelectionRange(0, token.length);
+      const ok = document.execCommand("copy");
+      document.body.removeChild(textarea);
       if (ok) {
-        alert('已复制到剪贴板')
+        alert("已复制到剪贴板");
       } else {
-        alert('复制失败，请手动选择密钥复制')
+        alert("复制失败，请手动选择密钥复制");
       }
     } catch {
-      const textarea = document.createElement('textarea')
-      textarea.value = token
-      textarea.style.position = 'fixed'
-      textarea.style.left = '-9999px'
-      textarea.style.top = '0'
-      textarea.setAttribute('readonly', '')
-      document.body.appendChild(textarea)
-      textarea.select()
-      textarea.setSelectionRange(0, token.length)
-      const ok = document.execCommand('copy')
-      document.body.removeChild(textarea)
-      alert(ok ? '已复制到剪贴板' : '复制失败，请手动选择密钥复制')
+      const textarea = document.createElement("textarea");
+      textarea.value = token;
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      textarea.style.top = "0";
+      textarea.setAttribute("readonly", "");
+      document.body.appendChild(textarea);
+      textarea.select();
+      textarea.setSelectionRange(0, token.length);
+      const ok = document.execCommand("copy");
+      document.body.removeChild(textarea);
+      alert(ok ? "已复制到剪贴板" : "复制失败，请手动选择密钥复制");
     }
-  }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 p-8 transition-colors dark:bg-gray-950">
@@ -179,12 +180,12 @@ export default function ContestTokens() {
               </h1>
               {contest && (
                 <p
-                  className={`mt-1 text-xs font-bold md:text-sm ${contest.status === 'PENDING' ? 'text-green-600 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}`}
+                  className={`mt-1 text-xs font-bold md:text-sm ${contest.status === "PENDING" ? "text-green-600 dark:text-green-400" : "text-gray-500 dark:text-gray-400"}`}
                 >
-                  状态:{' '}
-                  {contest.status === 'PENDING'
-                    ? '未开始 (可重新生成)'
-                    : '已开始 (只读)'}
+                  状态:{" "}
+                  {contest.status === "PENDING"
+                    ? "未开始 (可重新生成)"
+                    : "已开始 (只读)"}
                 </p>
               )}
             </div>
@@ -195,10 +196,10 @@ export default function ContestTokens() {
         />
 
         {/* Generation Form */}
-        {(!generated || contest?.status === 'PENDING') && (
+        {(!generated || contest?.status === "PENDING") && (
           <div className="mb-8 rounded-2xl border bg-white p-8 shadow-sm dark:border-white/5 dark:bg-gray-900">
             <h2 className="mb-4 text-xl font-black dark:text-white">
-              {generated ? '重新生成密钥' : '生成新密钥'}
+              {generated ? "重新生成密钥" : "生成新密钥"}
             </h2>
             <div className="flex items-end gap-4">
               <div className="flex-1">
@@ -219,11 +220,11 @@ export default function ContestTokens() {
                 disabled={loading}
                 className={`h-[52px] rounded-xl px-8 py-3 font-bold text-white transition ${
                   generated
-                    ? 'bg-red-600 hover:bg-red-700'
-                    : 'bg-blue-600 hover:bg-blue-700'
+                    ? "bg-red-600 hover:bg-red-700"
+                    : "bg-blue-600 hover:bg-blue-700"
                 }`}
               >
-                {loading ? '载入中' : generated ? '重新生成' : '生成密钥'}
+                {loading ? "载入中" : generated ? "重新生成" : "生成密钥"}
               </button>
             </div>
             {generated && (
@@ -317,7 +318,7 @@ export default function ContestTokens() {
                     ) : (
                       <div className="group mb-1 flex items-center gap-2">
                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                          {t.username || '未设置昵称'}
+                          {t.username || "未设置昵称"}
                         </p>
                         <button
                           onClick={() => startEdit(t)}
@@ -354,12 +355,12 @@ export default function ContestTokens() {
             </div>
 
             <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800 dark:border-yellow-800/30 dark:bg-yellow-900/10 dark:text-yellow-400">
-              <strong>提示：</strong>{' '}
+              <strong>提示：</strong>{" "}
               请将这些密钥分发给对应的选手。选手首次登录时可以设置自己的昵称。
             </div>
           </div>
         )}
       </div>
     </div>
-  )
+  );
 }

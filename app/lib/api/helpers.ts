@@ -3,16 +3,16 @@
  * 用于统一处理 Rate Limiting、错误处理等
  */
 
-import { NextResponse } from 'next/server'
+import { NextResponse } from "next/server";
 import {
   checkRateLimit,
   getRateLimitHeaders,
   RateLimitConfig,
-} from '../middleware/rate-limit'
+} from "../middleware/rate-limit";
 
 export interface APIHandlerOptions {
-  rateLimit?: RateLimitConfig
-  requireAuth?: boolean
+  rateLimit?: RateLimitConfig;
+  requireAuth?: boolean;
 }
 
 /**
@@ -26,46 +26,46 @@ export function withAPIProtection(
     try {
       // Rate Limiting
       if (options.rateLimit) {
-        const result = checkRateLimit(request, options.rateLimit)
-        const rateLimitHeaders = getRateLimitHeaders(result)
+        const result = checkRateLimit(request, options.rateLimit);
+        const rateLimitHeaders = getRateLimitHeaders(result);
 
         if (!result.allowed) {
           return NextResponse.json(
             {
-              error: '请求过于频繁，请稍后再试',
+              error: "请求过于频繁，请稍后再试",
               retryAfter: Math.ceil((result.resetTime - Date.now()) / 1000),
             },
             {
               status: 429,
               headers: {
-                'Retry-After': Math.ceil(
+                "Retry-After": Math.ceil(
                   (result.resetTime - Date.now()) / 1000,
                 ).toString(),
                 ...rateLimitHeaders,
               },
             },
-          )
+          );
         }
 
         // 继续处理请求
-        const response = await handler(request, context)
+        const response = await handler(request, context);
 
         // 添加 Rate Limit 响应头
         Object.entries(rateLimitHeaders).forEach(([key, value]) => {
-          response.headers.set(key, value)
-        })
+          response.headers.set(key, value);
+        });
 
-        return response
+        return response;
       }
 
       // 直接处理
-      return await handler(request, context)
+      return await handler(request, context);
     } catch (error: any) {
-      console.error('API Error:', error)
+      console.error("API Error:", error);
       return NextResponse.json(
-        { error: error.message || '服务器错误' },
+        { error: error.message || "服务器错误" },
         { status: error.status || 500 },
-      )
+      );
     }
-  }
+  };
 }

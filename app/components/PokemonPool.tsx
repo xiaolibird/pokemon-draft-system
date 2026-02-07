@@ -11,6 +11,7 @@ import { usePokemonFilter } from "@/app/lib/hooks/usePokemonFilter";
 import { useSearchHints } from "@/app/lib/hooks/useSearchHints";
 import { PokemonCard } from "./PokemonCard";
 import { TYPE_COLORS } from "@/app/lib/utils/constants";
+import { assignColorsToTiers } from "@/app/lib/utils/color-generator";
 import { PoolItem, Contest } from "@/app/types/draft";
 
 // ... Filter Icons ...
@@ -160,18 +161,8 @@ function PokemonPoolComponent({
 
     const tiersData = contest.priceTiers as any;
 
-    // 同步生成颜色（不使用 async/await，因为 useMemo 不能是 async）
-    const generateColorsSync = () => {
-      try {
-        const {
-          assignColorsToTiers,
-        } = require("@/app/lib/utils/color-generator");
-        return assignColorsToTiers;
-      } catch {
-        return null;
-      }
-    };
-    const assignColorsToTiers = generateColorsSync();
+    // Use imported function directly
+    // const assignColorsToTiers = assignColorsToTiers; // already imported
 
     // Try to map from contest price tiers if available
     // priceTiers 可能是 { tiers: [...] } 或直接是数组

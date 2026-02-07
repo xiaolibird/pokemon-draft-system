@@ -6,9 +6,9 @@
  */
 
 export function isSecureContext(request?: Request): boolean {
-  if (process.env.USE_HTTPS === 'true') return true
-  const proto = request?.headers?.get?.('x-forwarded-proto')
+  if (process.env.USE_HTTPS === "true") return true;
+  const proto = request?.headers?.get?.("x-forwarded-proto");
   // 只有真正检测到 HTTPS 时才启用 secure 属性
   // 避免生产环境下通过 IP (HTTP) 访问时 Cookie 被浏览器拒绝
-  return proto === 'https'
+  return proto === "https";
 }

@@ -76,7 +76,4 @@ test-results/
 # .cursorrules: 项目级 AI 规则，可选提交以统一团队；忽略则每人本地维护
 .cursorrules
 
-
-# 根目录一次性迁移脚本（含本地路径，勿提交）
-migrate_*.py
-migrate_*.sh
+*deprecated.*

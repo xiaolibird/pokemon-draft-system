@@ -4,18 +4,18 @@
  * Displays a single Pokemon card with actions (pick/nominate/bid)
  */
 
-import { memo } from 'react'
-import { getPokemonStaticIcon } from '@/app/lib/utils/helpers'
-import { TYPE_COLORS } from '@/app/lib/utils/constants'
+import { memo } from "react";
+import { getPokemonStaticIcon } from "@/app/lib/utils/helpers";
+import { TYPE_COLORS } from "@/app/lib/utils/constants";
 
 interface PokemonCardProps {
-  item: any
-  isMyTurn: boolean
-  onAction: () => void
-  mode: string
-  hidePrice?: boolean
+  item: any;
+  isMyTurn: boolean;
+  onAction: () => void;
+  mode: string;
+  hidePrice?: boolean;
   /** 乐观更新：正在提交中，显示「选集中」并禁用点击 */
-  isPending?: boolean
+  isPending?: boolean;
 }
 
 function PokemonCardComponent({
@@ -26,27 +26,27 @@ function PokemonCardComponent({
   isPending,
   ...props
 }: PokemonCardProps) {
-  const picon = getPokemonStaticIcon(item.pokemon.num, item.pokemon.name, 'lg')
-  const types = item.pokemon.types || []
-  const basePrice = item.basePrice ?? 0
-  const canClick = isMyTurn && !isPending
+  const picon = getPokemonStaticIcon(item.pokemon.num, item.pokemon.name, "lg");
+  const types = item.pokemon.types || [];
+  const basePrice = item.basePrice ?? 0;
+  const canClick = isMyTurn && !isPending;
 
   return (
     <div
       onClick={canClick ? onAction : undefined}
       className={`group relative rounded-xl border-2 p-4 transition-all ${
         isPending
-          ? 'cursor-wait border-amber-400 bg-amber-50 opacity-90 dark:bg-amber-900/20'
+          ? "cursor-wait border-amber-400 bg-amber-50 opacity-90 dark:bg-amber-900/20"
           : isMyTurn
-            ? 'cursor-pointer border-blue-500 bg-white hover:scale-105 hover:border-blue-600 hover:shadow-lg dark:bg-gray-900'
-            : 'cursor-not-allowed border-gray-200 bg-gray-50 opacity-60 dark:border-gray-800 dark:bg-gray-900/50'
+            ? "cursor-pointer border-blue-500 bg-white hover:scale-105 hover:border-blue-600 hover:shadow-lg dark:bg-gray-900"
+            : "cursor-not-allowed border-gray-200 bg-gray-50 opacity-60 dark:border-gray-800 dark:bg-gray-900/50"
       } `}
     >
       {/* Pokemon Icon */}
       <div className="mb-3 flex justify-center">
         <span
           className="picon picon-lg"
-          style={typeof picon === 'object' ? (picon as any) : {}}
+          style={typeof picon === "object" ? (picon as any) : {}}
         />
       </div>
 
@@ -68,7 +68,7 @@ function PokemonCardComponent({
           <span
             key={t}
             className="h-2 w-2 rounded font-bold text-white md:h-auto md:w-auto md:px-2 md:py-0.5 md:text-xs"
-            style={{ backgroundColor: TYPE_COLORS[t] || '#999' }}
+            style={{ backgroundColor: TYPE_COLORS[t] || "#999" }}
             title={t}
           >
             <span className="hidden md:inline">{t}</span>
@@ -77,7 +77,7 @@ function PokemonCardComponent({
       </div>
 
       {/* Price */}
-      {!props.hidePrice && !(mode === 'AUCTION' && basePrice === 0) && (
+      {!props.hidePrice && !(mode === "AUCTION" && basePrice === 0) && (
         <div className="text-center">
           <span className="text-xs text-gray-500 dark:text-gray-400">
             {basePrice} G
@@ -90,12 +90,12 @@ function PokemonCardComponent({
         <div className="absolute top-2 right-2 z-10 scale-75 transform opacity-0 transition-all duration-300 group-hover:scale-100 group-hover:opacity-100">
           <div
             className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-black shadow-lg ${
-              mode === 'SNAKE'
-                ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white'
-                : 'bg-gradient-to-r from-amber-500 to-orange-500 text-white'
+              mode === "SNAKE"
+                ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white"
+                : "bg-gradient-to-r from-amber-500 to-orange-500 text-white"
             } `}
           >
-            {mode === 'SNAKE' ? (
+            {mode === "SNAKE" ? (
               <>
                 <svg
                   className="h-3 w-3"
@@ -126,7 +126,7 @@ function PokemonCardComponent({
         </div>
       )}
     </div>
-  )
+  );
 }
 
 function arePropsEqual(prev: PokemonCardProps, next: PokemonCardProps) {
@@ -137,7 +137,7 @@ function arePropsEqual(prev: PokemonCardProps, next: PokemonCardProps) {
     prev.item.status === next.item.status &&
     prev.item.basePrice === next.item.basePrice &&
     prev.item.pokemonId === next.item.pokemonId
-  )
+  );
 }
 
-export const PokemonCard = memo(PokemonCardComponent, arePropsEqual)
+export const PokemonCard = memo(PokemonCardComponent, arePropsEqual);

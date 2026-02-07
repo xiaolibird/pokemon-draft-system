@@ -1,9 +1,9 @@
 export function Loading({
   fullScreen = true,
-  text = '加载中...',
+  text = "加载中...",
 }: {
-  fullScreen?: boolean
-  text?: string
+  fullScreen?: boolean;
+  text?: string;
 }) {
   const content = (
     <div className="animate-in fade-in flex flex-col items-center justify-center gap-4 duration-500">
@@ -17,19 +17,19 @@ export function Loading({
         {text}
       </p>
     </div>
-  )
+  );
 
   if (fullScreen) {
     return (
       <div className="inset-0 z-50 flex min-h-screen items-center justify-center bg-gray-50 transition-colors dark:bg-gray-950">
         {content}
       </div>
-    )
+    );
   }
 
   return (
     <div className="flex h-full w-full items-center justify-center p-8">
       {content}
     </div>
-  )
+  );
 }

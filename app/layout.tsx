@@ -1,34 +1,24 @@
-import type { Metadata } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
-import './styles/globals.css'
-import './styles/pokemonicons.css'
-
-const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
-})
-
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
-  subsets: ['latin'],
-})
+import type { Metadata } from "next";
+import { geistSans, geistMono } from "@/app/ui/fonts";
+import "./styles/globals.css";
+import "./styles/pokemonicons.css";
 
 export const metadata: Metadata = {
-  title: '宝可梦选秀系统',
-  description: '为竞技玩家设计的专业选秀管理平台',
-}
+  title: "宝可梦选秀系统",
+  description: "为竞技玩家设计的专业选秀管理平台",
+};
 
-import { ThemeProvider } from '@/app/lib/contexts/theme'
-import { VersionChecker } from '@/app/components/VersionChecker'
+import { ThemeProvider } from "@/app/lib/contexts/theme";
+import { VersionChecker } from "@/app/components/VersionChecker";
 
 export default function RootLayout({
   children,
 }: Readonly<{
-  children: React.ReactNode
+  children: React.ReactNode;
 }>) {
   // 注入构建版本号到客户端（从环境变量）
   const buildVersion =
-    process.env.BUILD_VERSION || process.env.NEXT_PUBLIC_BUILD_VERSION || 'dev'
+    process.env.BUILD_VERSION || process.env.NEXT_PUBLIC_BUILD_VERSION || "dev";
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -46,7 +36,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable || ""} ${geistMono.variable || ""} antialiased`}
       >
         <ThemeProvider>
           {children}
@@ -54,5 +44,5 @@ export default function RootLayout({
         </ThemeProvider>
       </body>
     </html>
-  )
+  );
 }

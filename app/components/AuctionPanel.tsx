@@ -1,39 +1,18 @@
-import { getPokemonStaticIcon } from '@/app/lib/utils/helpers'
-import { memo } from 'react'
+import { getPokemonStaticIcon } from "@/app/lib/utils/helpers";
+import { memo } from "react";
 
 interface AuctionPanelProps {
-  contest: any
-  activePokemon: any
-  timeLeft: number | null
-  bidAmount: number
-  setBidAmount: (amount: number) => void
-  onBid: () => void
-  isSubmitting: boolean
-  playerId: string | null
+  contest: any;
+  activePokemon: any;
+  timeLeft: number | null;
+  bidAmount: number;
+  setBidAmount: (amount: number) => void;
+  onBid: () => void;
+  isSubmitting: boolean;
+  playerId: string | null;
 }
 
-function auctionPanelPropsEqual(
-  prev: AuctionPanelProps,
-  next: AuctionPanelProps,
-): boolean {
-  if (prev.bidAmount !== next.bidAmount) return false
-  if (prev.isSubmitting !== next.isSubmitting) return false
-  if (prev.playerId !== next.playerId) return false
-  if (prev.timeLeft !== next.timeLeft) return false
-  if (prev.activePokemon?.id !== next.activePokemon?.id) return false
-  const pc = prev.contest || {}
-  const nc = next.contest || {}
-  if (pc.draftMode !== nc.draftMode || pc.auctionPhase !== nc.auctionPhase)
-    return false
-  if (
-    pc.highestBid !== nc.highestBid ||
-    pc.highestBidderId !== nc.highestBidderId
-  )
-    return false
-  return true
-}
-
-const AuctionPanelInner = function AuctionPanel({
+export const AuctionPanel = memo(function AuctionPanel({
   contest,
   activePokemon,
   timeLeft,
@@ -46,17 +25,17 @@ const AuctionPanelInner = function AuctionPanel({
 }: AuctionPanelProps & { isSpectator?: boolean }) {
   if (
     !contest ||
-    contest.draftMode !== 'AUCTION' ||
-    contest.auctionPhase !== 'BIDDING' ||
+    contest.draftMode !== "AUCTION" ||
+    contest.auctionPhase !== "BIDDING" ||
     !activePokemon
   ) {
-    return null
+    return null;
   }
 
-  const highestBid = contest.highestBid || 0
-  const currentPrice = contest.highestBid || activePokemon.basePrice || 0
-  const minBid = highestBid + 1
-  const isHighestBidder = contest.highestBidderId === playerId
+  const highestBid = contest.highestBid || 0;
+  const currentPrice = contest.highestBid || activePokemon.basePrice || 0;
+  const minBid = highestBid + 1;
+  const isHighestBidder = contest.highestBidderId === playerId;
 
   return (
     <div className="relative mb-6 overflow-hidden rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 p-6 text-white shadow-lg">
@@ -73,12 +52,12 @@ const AuctionPanelInner = function AuctionPanel({
                 typeof getPokemonStaticIcon(
                   activePokemon.pokemon.num,
                   activePokemon.pokemon.name,
-                  'lg',
-                ) === 'object'
+                  "lg",
+                ) === "object"
                   ? (getPokemonStaticIcon(
                       activePokemon.pokemon.num,
                       activePokemon.pokemon.name,
-                      'lg',
+                      "lg",
                     ) as any)
                   : {}
               }
@@ -91,10 +70,10 @@ const AuctionPanelInner = function AuctionPanel({
               </span>
               {timeLeft !== null ? (
                 <span
-                  className={`text-xs font-bold ${timeLeft <= 5000 ? 'animate-pulse text-red-200' : 'text-orange-100'}`}
+                  className={`text-xs font-bold ${timeLeft <= 5000 ? "animate-pulse text-red-200" : "text-orange-100"}`}
                 >
                   {timeLeft <= 0
-                    ? '同步中...'
+                    ? "同步中..."
                     : `倒计时 ${Math.ceil(timeLeft / 1000)}s`}
                 </span>
               ) : (
@@ -196,17 +175,17 @@ const AuctionPanelInner = function AuctionPanel({
                   type="number"
                   value={bidAmount}
                   onChange={(e) => {
-                    const val = parseInt(e.target.value)
+                    const val = parseInt(e.target.value);
                     if (!isNaN(val)) {
-                      setBidAmount(val)
+                      setBidAmount(val);
                     }
                   }}
                   onBlur={() => {
-                    if (bidAmount < minBid) setBidAmount(minBid)
+                    if (bidAmount < minBid) setBidAmount(minBid);
                   }}
                   className="m-0 w-full flex-1 appearance-none border-none bg-transparent p-0 text-center font-mono text-xl font-black text-white placeholder-white/50 outline-none focus:ring-0"
                   min={minBid}
-                  style={{ MozAppearance: 'textfield' }}
+                  style={{ MozAppearance: "textfield" }}
                 />
                 <button
                   onClick={() => setBidAmount(bidAmount + 1)}
@@ -246,7 +225,5 @@ const AuctionPanelInner = function AuctionPanel({
         </div>
       </div>
     </div>
-  )
-}
-
-export const AuctionPanel = memo(AuctionPanelInner, auctionPanelPropsEqual)
+  );
+});

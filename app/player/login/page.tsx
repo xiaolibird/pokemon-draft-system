@@ -1,133 +1,133 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { apiFetch } from '@/app/lib/api/fetch'
-import AuthLayout from '@/app/components/AuthLayout'
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { apiFetch } from "@/app/lib/api/fetch";
+import AuthLayout from "@/app/components/AuthLayout";
 import {
   AuthInput,
   AuthButton,
   BackButton,
-} from '@/app/components/AuthComponents'
+} from "@/app/components/AuthComponents";
 
 export default function PlayerLogin() {
-  const [accessKey, setAccessKey] = useState('')
-  const [username, setUsername] = useState('')
-  const [showNameInput, setShowNameInput] = useState(false)
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-  const router = useRouter()
+  const [accessKey, setAccessKey] = useState("");
+  const [username, setUsername] = useState("");
+  const [showNameInput, setShowNameInput] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
-    document.title = '宝可梦选秀系统-选手登录'
+    document.title = "宝可梦选秀系统-选手登录";
 
     // Handle forced logout via query param
-    const urlParams = new URLSearchParams(window.location.search)
-    if (urlParams.get('logout') === 'true') {
-      localStorage.removeItem('playerId')
-      localStorage.removeItem('contestId')
-      router.replace('/player/login')
-      return
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get("logout") === "true") {
+      localStorage.removeItem("playerId");
+      localStorage.removeItem("contestId");
+      router.replace("/player/login");
+      return;
     }
 
     // 从 room 被踢回（401/403/404）：确保缓存已清，显示对应提示
-    const reason = urlParams.get('reason')
-    if (reason === 'session_expired' || reason === 'contest_not_found') {
-      localStorage.removeItem('playerId')
-      localStorage.removeItem('contestId')
+    const reason = urlParams.get("reason");
+    if (reason === "session_expired" || reason === "contest_not_found") {
+      localStorage.removeItem("playerId");
+      localStorage.removeItem("contestId");
       setError(
-        reason === 'session_expired'
-          ? '登录已过期，请重新输入密钥'
-          : '比赛不存在或已结束，请重新登录',
-      )
-      router.replace('/player/login')
-      return
+        reason === "session_expired"
+          ? "登录已过期，请重新输入密钥"
+          : "比赛不存在或已结束，请重新登录",
+      );
+      router.replace("/player/login");
+      return;
     }
 
     // 如果 localStorage 有值但用户仍在登录页，可能是 room 跳转失败（比赛不存在/已结束）
     // 延迟检查：如果 2 秒后还在登录页且有 localStorage，清除缓存避免循环
-    const storedPlayerId = localStorage.getItem('playerId')
-    const storedContestId = localStorage.getItem('contestId')
+    const storedPlayerId = localStorage.getItem("playerId");
+    const storedContestId = localStorage.getItem("contestId");
     if (storedPlayerId && storedContestId) {
       const timeoutId = setTimeout(() => {
         // 如果还在登录页（说明 room 跳转失败），清除缓存
-        if (window.location.pathname === '/player/login') {
-          localStorage.removeItem('playerId')
-          localStorage.removeItem('contestId')
-          setError('检测到无效的登录状态，已自动清除缓存，请重新登录')
+        if (window.location.pathname === "/player/login") {
+          localStorage.removeItem("playerId");
+          localStorage.removeItem("contestId");
+          setError("检测到无效的登录状态，已自动清除缓存，请重新登录");
         }
-      }, 2000)
-      router.push('/player/room')
-      return () => clearTimeout(timeoutId)
+      }, 2000);
+      router.push("/player/room");
+      return () => clearTimeout(timeoutId);
     }
-  }, [router])
+  }, [router]);
 
   const handleVerifyKey = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
+    e.preventDefault();
+    setLoading(true);
+    setError("");
 
     try {
-      const res = await apiFetch('/api/player/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await apiFetch("/api/player/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ accessKey }),
-      })
+      });
 
       if (res.ok) {
-        const data = await res.json()
+        const data = await res.json();
 
-        if (data.username.startsWith('选手')) {
-          setShowNameInput(true)
+        if (data.username.startsWith("选手")) {
+          setShowNameInput(true);
         } else {
-          localStorage.setItem('playerId', data.playerId)
-          localStorage.setItem('contestId', data.contestId)
-          router.push('/player/room')
+          localStorage.setItem("playerId", data.playerId);
+          localStorage.setItem("contestId", data.contestId);
+          router.push("/player/room");
         }
       } else {
-        const err = await res.json()
-        setError(err.error || '验证失败')
+        const err = await res.json();
+        setError(err.error || "验证失败");
       }
     } catch (err) {
-      setError('网络连接异常')
+      setError("网络连接异常");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleSetName = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
 
     if (!username.trim()) {
-      setError('请输入昵称')
-      return
+      setError("请输入昵称");
+      return;
     }
 
-    setLoading(true)
-    setError('')
+    setLoading(true);
+    setError("");
 
     try {
-      const res = await apiFetch('/api/player/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await apiFetch("/api/player/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ accessKey, username: username.trim() }),
-      })
+      });
 
       if (res.ok) {
-        const data = await res.json()
-        localStorage.setItem('playerId', data.playerId)
-        localStorage.setItem('contestId', data.contestId)
-        router.push('/player/room')
+        const data = await res.json();
+        localStorage.setItem("playerId", data.playerId);
+        localStorage.setItem("contestId", data.contestId);
+        router.push("/player/room");
       } else {
-        const err = await res.json()
-        setError(err.error || '设置失败')
+        const err = await res.json();
+        setError(err.error || "设置失败");
       }
     } catch (err) {
-      setError('网络连接异常')
+      setError("网络连接异常");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <AuthLayout>
@@ -137,12 +137,12 @@ export default function PlayerLogin() {
         <div className="rounded-[2.5rem] border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur-2xl md:p-10">
           <div className="mb-10 text-center">
             <h1 className="mb-2 bg-gradient-to-r from-blue-400 via-cyan-300 to-teal-400 bg-clip-text text-4xl font-black text-transparent">
-              {showNameInput ? '设置昵称' : '选手登场'}
+              {showNameInput ? "设置昵称" : "选手登场"}
             </h1>
             <p className="text-sm text-slate-400">
               {showNameInput
-                ? '请设置你的显示昵称'
-                : '请输入比赛组织者分发的邀请密钥'}
+                ? "请设置你的显示昵称"
+                : "请输入比赛组织者分发的邀请密钥"}
             </p>
           </div>
 
@@ -227,10 +227,10 @@ export default function PlayerLogin() {
                 href="/api/player/logout"
                 className="text-xs text-slate-400 underline hover:text-slate-300"
                 onClick={(e) => {
-                  e.preventDefault()
-                  localStorage.removeItem('playerId')
-                  localStorage.removeItem('contestId')
-                  window.location.href = '/api/player/logout'
+                  e.preventDefault();
+                  localStorage.removeItem("playerId");
+                  localStorage.removeItem("contestId");
+                  window.location.href = "/api/player/logout";
                 }}
               >
                 清除缓存并重新登录
@@ -240,5 +240,5 @@ export default function PlayerLogin() {
         </div>
       </div>
     </AuthLayout>
-  )
+  );
 }

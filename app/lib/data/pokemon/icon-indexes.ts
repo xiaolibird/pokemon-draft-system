@@ -514,7 +514,7 @@ export const BattlePokemonIconIndexes: Record<string, number> = {
   draggalong: 1625,
   ramnarok: 1626,
   ramnarokradiant: 1627,
-}
+};
 
 export const BattlePokemonIconIndexesLeft: Record<string, number> = {
   pikachubelle: 1440,
@@ -624,4 +624,4 @@ export const BattlePokemonIconIndexesLeft: Record<string, number> = {
   necrozmaultra: 1543,
   stakataka: 1544,
   blacephalon: 1545,
-}
+};

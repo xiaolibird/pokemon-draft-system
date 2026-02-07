@@ -1,230 +1,259 @@
-'use client'
+"use client";
 
-import { BackButton, Header } from '@/app/components/Header'
-import { HeaderButton } from '@/app/components/HeaderButton'
-import { Loading } from '@/app/components/Loading'
-import ThemeToggle from '@/app/components/ThemeToggle'
-import { apiFetch } from '@/app/lib/api/fetch'
-import { TYPE_COLORS } from '@/app/lib/utils/constants'
-import { usePokemonFilter } from '@/app/lib/hooks/usePokemonFilter'
-import { useSearchHints } from '@/app/lib/hooks/useSearchHints'
-import { getPokemonStaticIcon } from '@/app/lib/utils/helpers'
-import { useParams, useRouter } from 'next/navigation'
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { BackButton, Header } from "@/app/components/Header";
+import { HeaderButton } from "@/app/components/HeaderButton";
+import { Loading } from "@/app/components/Loading";
+import ThemeToggle from "@/app/components/ThemeToggle";
+import { apiFetch } from "@/app/lib/api/fetch";
+import { TYPE_COLORS } from "@/app/lib/utils/constants";
+import { usePokemonFilter } from "@/app/lib/hooks/usePokemonFilter";
+import { useSearchHints } from "@/app/lib/hooks/useSearchHints";
+import { getPokemonStaticIcon } from "@/app/lib/utils/helpers";
+import { assignColorsToTiers } from "@/app/lib/utils/color-generator";
+import { useParams, useRouter } from "next/navigation";
+import { useEffect, useRef, useState, useCallback } from "react";
 
 interface Tier {
-  id: string
-  name: string
-  price: number
-  color: string
-  pokemonIds: string[]
+  id: string;
+  name: string;
+  price: number;
+  color: string;
+  pokemonIds: string[];
 }
 
+// 默认 tiers，颜色会在加载时自动生成
 const DEFAULT_TIERS: Tier[] = [
-  { id: '1', name: 'S 级', price: 30, color: '#ef4444', pokemonIds: [] },
-  { id: '2', name: 'A 级', price: 25, color: '#f97316', pokemonIds: [] },
-  { id: '3', name: 'B 级', price: 20, color: '#eab308', pokemonIds: [] },
-  { id: '4', name: 'C 级', price: 15, color: '#22c55e', pokemonIds: [] },
-  { id: '5', name: 'D 级', price: 10, color: '#3b82f6', pokemonIds: [] },
-  { id: '6', name: 'E 级', price: 5, color: '#8b5cf6', pokemonIds: [] },
-]
+  { id: "1", name: "S 级", price: 30, color: "#ef4444", pokemonIds: [] },
+  { id: "2", name: "A 级", price: 25, color: "#f97316", pokemonIds: [] },
+  { id: "3", name: "B 级", price: 20, color: "#eab308", pokemonIds: [] },
+  { id: "4", name: "C 级", price: 15, color: "#22c55e", pokemonIds: [] },
+  { id: "5", name: "D 级", price: 10, color: "#3b82f6", pokemonIds: [] },
+  { id: "6", name: "E 级", price: 5, color: "#8b5cf6", pokemonIds: [] },
+];
+
+// 为默认 tiers 生成颜色（如果还没有）
+function initializeDefaultTiers(): Tier[] {
+  const colors = assignColorsToTiers(DEFAULT_TIERS);
+  // 按价格匹配颜色，而不是按索引
+  return DEFAULT_TIERS.map((tier) => {
+    const colorTier = colors.find((t) => t.price === tier.price);
+    return {
+      ...tier,
+      color: colorTier?.color || tier.color,
+    };
+  });
+}
 
 export default function PriceTiers() {
-  const router = useRouter()
-  const { id: rawId } = useParams()
+  const router = useRouter();
+  const { id: rawId } = useParams();
   const id =
-    typeof rawId === 'string' ? rawId : Array.isArray(rawId) ? rawId[0] : ''
+    typeof rawId === "string" ? rawId : Array.isArray(rawId) ? rawId[0] : "";
 
-  const [contest, setContest] = useState<any>(null)
-  const [pokemonPool, setPokemonPool] = useState<any[]>([])
-  const [tiers, setTiers] = useState<Tier[]>(DEFAULT_TIERS)
-  const [unassigned, setUnassigned] = useState<any[]>([])
-  const [selectedUnassigned, setSelectedUnassigned] = useState<string[]>([])
+  const [contest, setContest] = useState<any>(null);
+  const [pokemonPool, setPokemonPool] = useState<any[]>([]);
+  const [tiers, setTiers] = useState<Tier[]>(initializeDefaultTiers());
+  const [unassigned, setUnassigned] = useState<any[]>([]);
+  const [selectedUnassigned, setSelectedUnassigned] = useState<string[]>([]);
   const [draggedPokemon, setDraggedPokemon] = useState<{
-    pokemon: any
-    sourceTierId?: string
-    items?: any[]
-  } | null>(null)
-  const [draggedTierIndex, setDraggedTierIndex] = useState<number | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [searchTerm, setSearchTerm] = useState('')
-  const placeholder = useSearchHints()
-  const [playerTokens, setPlayerTokens] = useState(100)
-  const [dpTargetMode, setDpTargetMode] = useState<'BEST' | 'MINIMUM'>('BEST')
+    pokemon: any;
+    sourceTierId?: string;
+    items?: any[];
+  } | null>(null);
+  const [draggedTierIndex, setDraggedTierIndex] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const placeholder = useSearchHints();
+  const [playerTokens, setPlayerTokens] = useState(100);
+  const [dpTargetMode, setDpTargetMode] = useState<"BEST" | "MINIMUM">("BEST");
 
   const [dpConstraints, setDpConstraints] = useState<
     Record<string, { min: number; max: number }>
-  >({})
-  const [dpResults, setDpResults] = useState<any[]>([])
-  const [computingDp, setComputingDp] = useState(false)
+  >({});
+  const [dpResults, setDpResults] = useState<any[]>([]);
+  const [computingDp, setComputingDp] = useState(false);
 
   // Mobile & Multi-select States
   const [activeMobileTab, setActiveMobileTab] = useState<
-    'unassigned' | 'tiers' | 'settings'
-  >('tiers')
-  const [multiSelectMode, setMultiSelectMode] = useState(false)
+    "unassigned" | "tiers" | "settings"
+  >("tiers");
+  const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [showLongPressMenu, setShowLongPressMenu] = useState<{
-    x: number
-    y: number
-  } | null>(null)
-  const [isSelecting, setIsSelecting] = useState(false)
-  const longPressTimer = useRef<NodeJS.Timeout | null>(null)
-  const hasSlid = useRef(false)
-  const longPressTriggered = useRef(false)
-  const pointerStart = useRef<{ x: number; y: number } | null>(null)
+    x: number;
+    y: number;
+  } | null>(null);
+  const [isSelecting, setIsSelecting] = useState(false);
+  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+  const hasSlid = useRef(false);
+  const longPressTriggered = useRef(false);
+  const pointerStart = useRef<{ x: number; y: number } | null>(null);
   // Filter States
   const [types, setTypes] = useState<{
-    mode: 'AND' | 'OR'
-    include: string[]
-    exclude: string[]
-  }>({ mode: 'AND', include: [], exclude: [] })
+    mode: "AND" | "OR";
+    include: string[];
+    exclude: string[];
+  }>({ mode: "AND", include: [], exclude: [] });
   const [gens, setGens] = useState<{
-    mode: 'OR'
-    include: number[]
-    exclude: number[]
-  }>({ mode: 'OR', include: [], exclude: [] })
-  const [showFilters, setShowFilters] = useState(false)
-  const [typePriority, setTypePriority] = useState<string[]>([])
+    mode: "OR";
+    include: number[];
+    exclude: number[];
+  }>({ mode: "OR", include: [], exclude: [] });
+  const [showFilters, setShowFilters] = useState(false);
+  const [typePriority, setTypePriority] = useState<string[]>([]);
 
   // Initialize random type priority for sorting on mount
   useEffect(() => {
-    const t = Object.keys(TYPE_COLORS)
-    const arr = [...t]
+    const t = Object.keys(TYPE_COLORS);
+    const arr = [...t];
     for (let i = arr.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1))
-      ;[arr[i], arr[j]] = [arr[j], arr[i]]
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
     }
-    setTypePriority(arr)
-  }, [])
+    setTypePriority(arr);
+  }, []);
 
-  const [isTouchDevice, setIsTouchDevice] = useState(false)
-
-  useEffect(() => {
-    setIsTouchDevice(window.matchMedia('(pointer: coarse)').matches)
-  }, [])
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
 
   useEffect(() => {
-    document.title = '宝可梦选秀系统-价格分档'
-  }, [])
+    setIsTouchDevice(window.matchMedia("(pointer: coarse)").matches);
+  }, []);
+
+  useEffect(() => {
+    document.title = "宝可梦选秀系统-价格分档";
+  }, []);
 
   const loadData = useCallback(async () => {
     try {
-      const res = await apiFetch(`/api/admin/contests/${id}`)
+      const res = await apiFetch(`/api/admin/contests/${id}`);
       if (res.ok) {
-        const data = await res.json()
+        const data = await res.json();
 
         // Redirect if auction mode
-        if (data.draftMode === 'AUCTION') {
-          router.push(`/admin/contests/${id}`)
-          return
+        if (data.draftMode === "AUCTION") {
+          router.push(`/admin/contests/${id}`);
+          return;
         }
 
-        setContest(data)
-        setPokemonPool(data.pokemonPool || [])
-        setPlayerTokens(data.playerTokens || 100)
+        setContest(data);
+        setPokemonPool(data.pokemonPool || []);
+        setPlayerTokens(data.playerTokens || 100);
 
-        const rawTiers = data.priceTiers
-        const loadedTiers = Array.isArray(rawTiers) ? rawTiers : rawTiers?.tiers
+        const rawTiers = data.priceTiers;
+        const loadedTiers = Array.isArray(rawTiers)
+          ? rawTiers
+          : rawTiers?.tiers;
         if (loadedTiers && loadedTiers.length > 0) {
-          setTiers(loadedTiers)
+          // 为没有颜色的 tiers 生成颜色
+          const tiersWithColors = assignColorsToTiers(loadedTiers);
+          const updatedTiers = loadedTiers.map((tier: Tier) => {
+            const colorTier = tiersWithColors.find(
+              (t) => t.price === tier.price,
+            );
+            return {
+              ...tier,
+              color: colorTier?.color || tier.color || "#3b82f6",
+            };
+          });
+
+          setTiers(updatedTiers);
           setDpTargetMode(
-            rawTiers?.dpTargetMode === 'MINIMUM' ? 'MINIMUM' : 'BEST',
-          )
-          const assignedIds = new Set<string>()
-          loadedTiers.forEach((tier: Tier) => {
-            tier.pokemonIds.forEach((pid: string) => assignedIds.add(pid))
-          })
+            rawTiers?.dpTargetMode === "MINIMUM" ? "MINIMUM" : "BEST",
+          );
+          const assignedIds = new Set<string>();
+          updatedTiers.forEach((tier: Tier) => {
+            tier.pokemonIds.forEach((pid: string) => assignedIds.add(pid));
+          });
           setUnassigned(
             data.pokemonPool.filter((p: any) => !assignedIds.has(p.pokemon.id)),
-          )
+          );
         } else {
-          setUnassigned(data.pokemonPool)
+          setUnassigned(data.pokemonPool);
         }
       }
     } catch {
       // Error handled silently
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [id, router])
+  }, [id, router]);
 
   useEffect(() => {
-    if (id) loadData()
-  }, [id, loadData])
+    if (id) loadData();
+  }, [id, loadData]);
 
   // Interaction trackers
   const onPointerDown = (pokemonId: string, e: React.PointerEvent) => {
     // If filter is open, disable selection to prevent fat finger
-    if (showFilters) return
+    if (showFilters) return;
 
-    setIsSelecting(true)
-    setIsSelecting(true)
-    hasSlid.current = false
-    longPressTriggered.current = false
-    pointerStart.current = { x: e.clientX, y: e.clientY }
+    setIsSelecting(true);
+    setIsSelecting(true);
+    hasSlid.current = false;
+    longPressTriggered.current = false;
+    pointerStart.current = { x: e.clientX, y: e.clientY };
 
     longPressTimer.current = setTimeout(() => {
       if (!selectedUnassigned.includes(pokemonId)) {
         if (!multiSelectMode) {
-          setSelectedUnassigned([pokemonId])
+          setSelectedUnassigned([pokemonId]);
         } else {
-          setSelectedUnassigned((prev) => [...prev, pokemonId])
+          setSelectedUnassigned((prev) => [...prev, pokemonId]);
         }
       }
-      setShowLongPressMenu({ x: e.clientX, y: e.clientY })
-      longPressTriggered.current = true
-    }, 600)
-  }
+      setShowLongPressMenu({ x: e.clientX, y: e.clientY });
+      longPressTriggered.current = true;
+    }, 600);
+  };
 
   const onPointerMove = (pokemonId: string) => {
-    if (!multiSelectMode || !isSelecting) return
+    if (!multiSelectMode || !isSelecting) return;
     if (!selectedUnassigned.includes(pokemonId)) {
-      setSelectedUnassigned((prev) => [...prev, pokemonId])
-      hasSlid.current = true
+      setSelectedUnassigned((prev) => [...prev, pokemonId]);
+      hasSlid.current = true;
     }
-  }
+  };
 
   const handlePointerMoveGlobal = (e: React.PointerEvent) => {
     if (longPressTimer.current && pointerStart.current) {
-      const dx = e.clientX - pointerStart.current.x
-      const dy = e.clientY - pointerStart.current.y
+      const dx = e.clientX - pointerStart.current.x;
+      const dy = e.clientY - pointerStart.current.y;
       if (Math.hypot(dx, dy) > 10) {
-        clearTimeout(longPressTimer.current)
-        longPressTimer.current = null
+        clearTimeout(longPressTimer.current);
+        longPressTimer.current = null;
       }
     }
-  }
+  };
 
   const handlePointerCancel = () => {
     if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current)
-      longPressTimer.current = null
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
     }
-    setIsSelecting(false)
-    pointerStart.current = null
-  }
+    setIsSelecting(false);
+    pointerStart.current = null;
+  };
 
   const onPointerUp = (pokemonId: string) => {
-    setIsSelecting(false)
+    setIsSelecting(false);
     if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current)
-      longPressTimer.current = null
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
     }
 
     // If it was a simple tap (no slide, no long press), and in multi-select mode, then toggle
     if (multiSelectMode && !longPressTriggered.current && !hasSlid.current) {
       if (selectedUnassigned.includes(pokemonId)) {
-        setSelectedUnassigned((prev) => prev.filter((p) => p !== pokemonId))
+        setSelectedUnassigned((prev) => prev.filter((p) => p !== pokemonId));
       } else {
-        setSelectedUnassigned((prev) => [...prev, pokemonId])
+        setSelectedUnassigned((prev) => [...prev, pokemonId]);
       }
     }
-  }
+  };
 
   const moveSelectedToTier = (targetTierId: string | null) => {
-    if (selectedUnassigned.length === 0) return
-    const idsToMove = [...selectedUnassigned]
+    if (selectedUnassigned.length === 0) return;
+    const idsToMove = [...selectedUnassigned];
 
     if (targetTierId !== null) {
       setTiers((prev) =>
@@ -233,15 +262,15 @@ export default function PriceTiers() {
             ? { ...t, pokemonIds: [...t.pokemonIds, ...idsToMove] }
             : t,
         ),
-      )
+      );
       setUnassigned((prev) =>
         prev.filter((p) => !idsToMove.includes(p.pokemon.id)),
-      )
+      );
     }
 
-    setSelectedUnassigned([])
-    setShowLongPressMenu(null)
-  }
+    setSelectedUnassigned([]);
+    setShowLongPressMenu(null);
+  };
 
   const handleImportAllToTier = (targetTierId: string) => {
     if (
@@ -249,8 +278,8 @@ export default function PriceTiers() {
         `确定要将当前筛选的 ${filteredUnassigned.length} 只宝可梦导入该档位吗？`,
       )
     )
-      return
-    const idsToMove = filteredUnassigned.map((p) => p.pokemon.id)
+      return;
+    const idsToMove = filteredUnassigned.map((p) => p.pokemon.id);
 
     setTiers((prev) =>
       prev.map((t) =>
@@ -258,12 +287,12 @@ export default function PriceTiers() {
           ? { ...t, pokemonIds: [...t.pokemonIds, ...idsToMove] }
           : t,
       ),
-    )
+    );
     setUnassigned((prev) =>
       prev.filter((p) => !idsToMove.includes(p.pokemon.id)),
-    )
-    setSelectedUnassigned([])
-  }
+    );
+    setSelectedUnassigned([]);
+  };
 
   const handleDragStart = (
     e: React.DragEvent,
@@ -272,35 +301,35 @@ export default function PriceTiers() {
   ) => {
     // Cancel any pending long press when dragging starts
     if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current)
-      longPressTimer.current = null
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
     }
-    setIsSelecting(false)
+    setIsSelecting(false);
 
-    let items = [pokemon]
+    let items = [pokemon];
     if (sourceTierId === undefined) {
       if (selectedUnassigned.includes(pokemon.pokemon.id)) {
         items = unassigned.filter((p) =>
           selectedUnassigned.includes(p.pokemon.id),
-        )
+        );
       } else {
-        setSelectedUnassigned([pokemon.pokemon.id])
+        setSelectedUnassigned([pokemon.pokemon.id]);
       }
     }
-    setDraggedPokemon({ pokemon, sourceTierId, items })
-  }
+    setDraggedPokemon({ pokemon, sourceTierId, items });
+  };
 
   const handleDrop = (targetTierId: string | null) => {
-    if (!draggedPokemon) return
-    const { items, sourceTierId } = draggedPokemon
-    if (!items || items.length === 0) return
-    const idsToMove = items.map((p: any) => p.pokemon.id)
+    if (!draggedPokemon) return;
+    const { items, sourceTierId } = draggedPokemon;
+    if (!items || items.length === 0) return;
+    const idsToMove = items.map((p: any) => p.pokemon.id);
 
     if (sourceTierId === undefined || sourceTierId === null) {
       setUnassigned((prev) =>
         prev.filter((p) => !idsToMove.includes(p.pokemon.id)),
-      )
-      setSelectedUnassigned([])
+      );
+      setSelectedUnassigned([]);
     } else if (sourceTierId) {
       setTiers((prev) =>
         prev.map((t) =>
@@ -313,11 +342,11 @@ export default function PriceTiers() {
               }
             : t,
         ),
-      )
+      );
     }
 
     if (targetTierId === null) {
-      setUnassigned((prev) => [...prev, ...items])
+      setUnassigned((prev) => [...prev, ...items]);
     } else {
       setTiers((prev) =>
         prev.map((t) =>
@@ -325,93 +354,134 @@ export default function PriceTiers() {
             ? { ...t, pokemonIds: [...t.pokemonIds, ...idsToMove] }
             : t,
         ),
-      )
+      );
     }
-    setDraggedPokemon(null)
-  }
+    setDraggedPokemon(null);
+  };
 
   const handleSave = async () => {
-    setSaving(true)
+    setSaving(true);
     try {
+      // 保存前确保所有 tiers 都有颜色
+      const tiersWithColors = assignColorsToTiers(tiers);
+      const finalTiers = tiers.map((tier) => {
+        const colorTier = tiersWithColors.find((t) => t.price === tier.price);
+        return {
+          ...tier,
+          color: colorTier?.color || tier.color || "#3b82f6",
+        };
+      });
+
       const res = await apiFetch(`/api/admin/contests/${id}/price-tiers`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tiers, playerTokens, dpTargetMode }),
-      })
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tiers: finalTiers, playerTokens, dpTargetMode }),
+      });
       if (res.ok) {
-        alert('价格分档已成功保存！')
-        router.push(`/admin/contests/${id}`)
+        alert("价格分档已成功保存！");
+        router.push(`/admin/contests/${id}`);
       } else {
-        const err = await res.json()
-        alert(`保存失败: ${err.error || '未知'}`)
+        const err = await res.json();
+        alert(`保存失败: ${err.error || "未知"}`);
       }
     } catch (err: any) {
-      alert(`网络错误: ${err.message}`)
+      alert(`网络错误: ${err.message}`);
     } finally {
-      setSaving(false)
+      setSaving(false);
     }
-  }
+  };
 
   const updateTier = (
     tierId: string,
-    field: 'name' | 'price',
+    field: "name" | "price",
     value: string | number,
   ) => {
-    setTiers((prev) =>
-      prev.map((t) => (t.id === tierId ? { ...t, [field]: value } : t)),
-    )
-  }
+    setTiers((prev) => {
+      const updated = prev.map((t) =>
+        t.id === tierId ? { ...t, [field]: value } : t,
+      );
+      // 如果修改了价格，重新分配颜色以确保颜色阶梯正确
+      if (field === "price") {
+        const tiersWithColors = assignColorsToTiers(updated);
+        return updated.map((tier) => {
+          const colorTier = tiersWithColors.find((t) => t.price === tier.price);
+          return {
+            ...tier,
+            color: colorTier?.color || tier.color || "#3b82f6",
+          };
+        });
+      }
+      return updated;
+    });
+  };
 
   const addTier = () => {
-    const newId = Math.random().toString(36).substr(2, 9)
-    setTiers((prev) => [
-      ...prev,
-      { id: newId, name: '新分级', price: 1, color: '#9ca3af', pokemonIds: [] },
-    ])
-  }
+    const newId = Math.random().toString(36).substr(2, 9);
+    setTiers((prev) => {
+      const newTiers = [
+        ...prev,
+        {
+          id: newId,
+          name: "新分级",
+          price: 1,
+          color: "#9ca3af",
+          pokemonIds: [],
+        },
+      ];
+      // 为所有 tiers 重新分配颜色（包括新添加的）
+      const tiersWithColors = assignColorsToTiers(newTiers);
+      return newTiers.map((tier) => {
+        const colorTier = tiersWithColors.find((t) => t.price === tier.price);
+        return {
+          ...tier,
+          color: colorTier?.color || tier.color || "#3b82f6",
+        };
+      });
+    });
+  };
 
   const deleteTier = (tierId: string) => {
-    if (!confirm('确定要删除这个分级吗？其中包含的宝可梦将回到未分配状态。'))
-      return
-    const tier = tiers.find((t) => t.id === tierId)
-    if (!tier) return
+    if (!confirm("确定要删除这个分级吗？其中包含的宝可梦将回到未分配状态。"))
+      return;
+    const tier = tiers.find((t) => t.id === tierId);
+    if (!tier) return;
     const pokemonToRelease = pokemonPool.filter((p) =>
       tier.pokemonIds.includes(p.pokemon.id),
-    )
-    setUnassigned((prev) => [...prev, ...pokemonToRelease])
-    setTiers((prev) => prev.filter((t) => t.id !== tierId))
-  }
+    );
+    setUnassigned((prev) => [...prev, ...pokemonToRelease]);
+    setTiers((prev) => prev.filter((t) => t.id !== tierId));
+  };
 
   const sortTiersByPriceDesc = () => {
-    setTiers((prev) => [...prev].sort((a, b) => b.price - a.price))
-  }
+    setTiers((prev) => [...prev].sort((a, b) => b.price - a.price));
+  };
 
   const handleTierDragStart = (e: React.DragEvent, index: number) => {
-    e.stopPropagation()
-    e.dataTransfer.setData('application/x-tier-index', String(index))
-    setDraggedTierIndex(index)
-  }
+    e.stopPropagation();
+    e.dataTransfer.setData("application/x-tier-index", String(index));
+    setDraggedTierIndex(index);
+  };
 
   const handleTierDrop = (e: React.DragEvent, targetIndex: number) => {
-    e.preventDefault()
-    e.stopPropagation()
-    const raw = e.dataTransfer.getData('application/x-tier-index')
-    if (raw === '') return
-    const fromIndex = parseInt(raw, 10)
-    if (fromIndex === targetIndex) return
+    e.preventDefault();
+    e.stopPropagation();
+    const raw = e.dataTransfer.getData("application/x-tier-index");
+    if (raw === "") return;
+    const fromIndex = parseInt(raw, 10);
+    if (fromIndex === targetIndex) return;
 
     setTiers((prev) => {
-      const next = [...prev]
-      const [item] = next.splice(fromIndex, 1)
-      next.splice(targetIndex, 0, item)
-      return next
-    })
-    setDraggedTierIndex(null)
-  }
+      const next = [...prev];
+      const [item] = next.splice(fromIndex, 1);
+      next.splice(targetIndex, 0, item);
+      return next;
+    });
+    setDraggedTierIndex(null);
+  };
 
   const removePokemonFromTier = (pokemonId: string, tierId: string) => {
-    const pokemon = pokemonPool.find((p) => p.pokemon.id === pokemonId)
-    if (!pokemon) return
+    const pokemon = pokemonPool.find((p) => p.pokemon.id === pokemonId);
+    if (!pokemon) return;
 
     setTiers((prev) =>
       prev.map((t) =>
@@ -419,15 +489,15 @@ export default function PriceTiers() {
           ? { ...t, pokemonIds: t.pokemonIds.filter((id) => id !== pokemonId) }
           : t,
       ),
-    )
-    setUnassigned((prev) => [...prev, pokemon])
-  }
+    );
+    setUnassigned((prev) => [...prev, pokemon]);
+  };
 
   const getPokemonInTier = (tierId: string) => {
-    const tier = tiers.find((t) => t.id === tierId)
-    if (!tier) return []
-    return pokemonPool.filter((p) => tier.pokemonIds.includes(p.pokemon.id))
-  }
+    const tier = tiers.find((t) => t.id === tierId);
+    if (!tier) return [];
+    return pokemonPool.filter((p) => tier.pokemonIds.includes(p.pokemon.id));
+  };
 
   const handleTypeClick = (type: string) => {
     setTypes((prev) => {
@@ -436,16 +506,16 @@ export default function PriceTiers() {
           ...prev,
           include: prev.include.filter((t) => t !== type),
           exclude: [...prev.exclude, type],
-        }
+        };
       if (prev.exclude.includes(type))
-        return { ...prev, exclude: prev.exclude.filter((t) => t !== type) }
+        return { ...prev, exclude: prev.exclude.filter((t) => t !== type) };
       return {
         ...prev,
         include: [...prev.include, type],
         exclude: prev.exclude.filter((t) => t !== type),
-      }
-    })
-  }
+      };
+    });
+  };
 
   const handleGenClick = (g: number) => {
     setGens((prev) => {
@@ -454,16 +524,16 @@ export default function PriceTiers() {
           ...prev,
           include: prev.include.filter((x) => x !== g),
           exclude: [...prev.exclude, g],
-        }
+        };
       if (prev.exclude.includes(g))
-        return { ...prev, exclude: prev.exclude.filter((x) => x !== g) }
+        return { ...prev, exclude: prev.exclude.filter((x) => x !== g) };
       return {
         ...prev,
         include: [...prev.include, g],
         exclude: prev.exclude.filter((x) => x !== g),
-      }
-    })
-  }
+      };
+    });
+  };
 
   // Use hook for filtering
   const { filtered: filteredUnassigned } = usePokemonFilter({
@@ -472,19 +542,19 @@ export default function PriceTiers() {
     types,
     gens,
     typePriority,
-    sortBy: 'bst', // Keep BST sort for this view
-  })
+    sortBy: "bst", // Keep BST sort for this view
+  });
 
   const runDpAnalysis = () => {
-    setComputingDp(true)
-    setDpResults([])
+    setComputingDp(true);
+    setDpResults([]);
     setTimeout(() => {
-      const teamSize = contest?.maxPokemonPerPlayer || 6
-      const budget = playerTokens
+      const teamSize = contest?.maxPokemonPerPlayer || 6;
+      const budget = playerTokens;
       const activeTiers = tiers
         .filter((t) => t.price > 0 || t.pokemonIds.length > 0)
-        .sort((a, b) => b.price - a.price)
-      const results: any[] = []
+        .sort((a, b) => b.price - a.price);
+      const results: any[] = [];
 
       function solve(
         idx: number,
@@ -492,40 +562,40 @@ export default function PriceTiers() {
         cost: number,
         comp: Record<string, number>,
       ) {
-        if (cost > budget) return
+        if (cost > budget) return;
         if (count === teamSize) {
-          results.push({ comp: { ...comp }, cost, remaining: budget - cost })
-          return
+          results.push({ comp: { ...comp }, cost, remaining: budget - cost });
+          return;
         }
-        if (idx >= activeTiers.length) return
-        const tier = activeTiers[idx]
-        const min = dpConstraints[tier.id]?.min || 0
+        if (idx >= activeTiers.length) return;
+        const tier = activeTiers[idx];
+        const min = dpConstraints[tier.id]?.min || 0;
         const max =
           dpConstraints[tier.id]?.max !== undefined
             ? dpConstraints[tier.id].max
-            : teamSize
+            : teamSize;
         for (let c = min; c <= max; c++) {
-          if (count + c > teamSize) break
-          comp[tier.id] = c
-          solve(idx + 1, count + c, cost + c * tier.price, comp)
-          delete comp[tier.id]
+          if (count + c > teamSize) break;
+          comp[tier.id] = c;
+          solve(idx + 1, count + c, cost + c * tier.price, comp);
+          delete comp[tier.id];
         }
       }
-      solve(0, 0, 0, {})
-      results.sort((a, b) => a.remaining - b.remaining)
-      setDpResults(results.slice(0, 50))
-      setComputingDp(false)
-    }, 100)
-  }
+      solve(0, 0, 0, {});
+      results.sort((a, b) => a.remaining - b.remaining);
+      setDpResults(results.slice(0, 50));
+      setComputingDp(false);
+    }, 100);
+  };
 
-  if (loading) return <Loading text="加载分档数据中..." />
+  if (loading) return <Loading text="加载分档数据中..." />;
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-900 dark:bg-gray-950 dark:text-white">
       <Header
         variant="admin"
         transparent={true}
-        title={contest?.name || ''}
+        title={contest?.name || ""}
         className="p-4"
         leftSlot={<BackButton href={`/admin/contests/${id}`} />}
         rightSlot={
@@ -538,7 +608,7 @@ export default function PriceTiers() {
               size="lg"
               className="hidden md:flex"
             >
-              {saving ? '保存中...' : '提交'}
+              {saving ? "保存中..." : "提交"}
             </HeaderButton>
             <HeaderButton
               onClick={handleSave}
@@ -570,7 +640,7 @@ export default function PriceTiers() {
       <main className="relative flex h-[calc(100dvh-150px)] w-full flex-col gap-4 overflow-hidden p-4 md:h-[calc(100vh-73px)] md:flex-row">
         {/* Left Column: Unassigned */}
         <div
-          className={`flex w-full flex-1 flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm transition-all duration-300 md:w-80 md:flex-none dark:border-white/5 dark:bg-gray-900 ${activeMobileTab === 'unassigned' ? 'block' : 'hidden md:flex'}`}
+          className={`flex w-full flex-1 flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm transition-all duration-300 md:w-80 md:flex-none dark:border-white/5 dark:bg-gray-900 ${activeMobileTab === "unassigned" ? "block" : "hidden md:flex"}`}
           onDragOver={(e) => e.preventDefault()}
           onDrop={() => handleDrop(null)}
         >
@@ -584,8 +654,8 @@ export default function PriceTiers() {
                   onClick={() => setShowFilters(!showFilters)}
                   className={`rounded-lg p-1 transition ${
                     showFilters
-                      ? 'bg-blue-500 text-white'
-                      : 'text-gray-400 hover:bg-gray-100 dark:text-gray-500 dark:hover:bg-white/10'
+                      ? "bg-blue-500 text-white"
+                      : "text-gray-400 hover:bg-gray-100 dark:text-gray-500 dark:hover:bg-white/10"
                   }`}
                 >
                   <svg
@@ -609,13 +679,13 @@ export default function PriceTiers() {
                 </span>
                 <button
                   onClick={() => {
-                    setMultiSelectMode(!multiSelectMode)
-                    setSelectedUnassigned([])
+                    setMultiSelectMode(!multiSelectMode);
+                    setSelectedUnassigned([]);
                   }}
-                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${multiSelectMode ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-700'}`}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${multiSelectMode ? "bg-blue-600" : "bg-gray-300 dark:bg-gray-700"}`}
                 >
                   <span
-                    className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${multiSelectMode ? 'translate-x-5' : 'translate-x-1'}`}
+                    className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${multiSelectMode ? "translate-x-5" : "translate-x-1"}`}
                   />
                 </button>
               </div>
@@ -639,36 +709,36 @@ export default function PriceTiers() {
                       onClick={() =>
                         setTypes((prev) => ({
                           ...prev,
-                          mode: prev.mode === 'AND' ? 'OR' : 'AND',
+                          mode: prev.mode === "AND" ? "OR" : "AND",
                         }))
                       }
                       className="rounded bg-gray-100 px-1.5 py-0.5 text-[8px] font-black text-gray-500 hover:text-blue-500 dark:bg-gray-800 dark:text-gray-400"
                     >
-                      {types.mode === 'AND' ? 'AND' : 'OR'}
+                      {types.mode === "AND" ? "AND" : "OR"}
                     </button>
                   </div>
                   <div className="flex flex-wrap gap-1">
                     {Object.keys(TYPE_COLORS).map((t) => {
                       const state = types.include.includes(t)
-                        ? 'include'
+                        ? "include"
                         : types.exclude.includes(t)
-                          ? 'exclude'
-                          : 'none'
+                          ? "exclude"
+                          : "none";
                       return (
                         <button
                           key={t}
                           onClick={() => handleTypeClick(t)}
                           className={`rounded border px-1.5 py-0.5 text-[10px] font-bold transition-all ${
-                            state === 'include'
-                              ? 'scale-105 border-blue-600 bg-blue-500 text-white shadow-md'
-                              : state === 'exclude'
-                                ? 'border-red-600 bg-red-500 text-white opacity-50'
-                                : 'border-transparent bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
+                            state === "include"
+                              ? "scale-105 border-blue-600 bg-blue-500 text-white shadow-md"
+                              : state === "exclude"
+                                ? "border-red-600 bg-red-500 text-white opacity-50"
+                                : "border-transparent bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
                           } `}
                         >
                           {t}
                         </button>
-                      )
+                      );
                     })}
                   </div>
                 </div>
@@ -681,25 +751,25 @@ export default function PriceTiers() {
                   <div className="flex flex-wrap gap-1">
                     {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((g) => {
                       const state = gens.include.includes(g)
-                        ? 'include'
+                        ? "include"
                         : gens.exclude.includes(g)
-                          ? 'exclude'
-                          : 'none'
+                          ? "exclude"
+                          : "none";
                       return (
                         <button
                           key={g}
                           onClick={() => handleGenClick(g)}
                           className={`rounded border px-2 py-0.5 text-[10px] font-bold transition-all ${
-                            state === 'include'
-                              ? 'scale-105 border-green-600 bg-green-500 text-white shadow-md'
-                              : state === 'exclude'
-                                ? 'border-red-600 bg-red-500 text-white opacity-50'
-                                : 'border-transparent bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
+                            state === "include"
+                              ? "scale-105 border-green-600 bg-green-500 text-white shadow-md"
+                              : state === "exclude"
+                                ? "border-red-600 bg-red-500 text-white opacity-50"
+                                : "border-transparent bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
                           } `}
                         >
                           G{g}
                         </button>
-                      )
+                      );
                     })}
                   </div>
                 </div>
@@ -711,9 +781,9 @@ export default function PriceTiers() {
                   gens.exclude.length > 0) && (
                   <button
                     onClick={() => {
-                      setTypes({ mode: 'AND', include: [], exclude: [] })
-                      setGens({ mode: 'OR', include: [], exclude: [] })
-                      setSearchTerm('')
+                      setTypes({ mode: "AND", include: [], exclude: [] });
+                      setGens({ mode: "OR", include: [], exclude: [] });
+                      setSearchTerm("");
                     }}
                     className="w-full rounded bg-gray-100 py-1 text-[10px] font-bold text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
                   >
@@ -734,10 +804,10 @@ export default function PriceTiers() {
                 onPointerMove={handlePointerMoveGlobal}
                 onPointerUp={() => onPointerUp(item.pokemon.id)}
                 onPointerCancel={handlePointerCancel}
-                className={`group flex cursor-pointer items-center gap-3 rounded-xl border p-2 transition select-none md:cursor-move ${multiSelectMode ? 'touch-none' : 'touch-pan-y'} ${
+                className={`group flex cursor-pointer items-center gap-3 rounded-xl border p-2 transition select-none md:cursor-move ${multiSelectMode ? "touch-none" : "touch-pan-y"} ${
                   selectedUnassigned.includes(item.pokemon.id)
-                    ? 'border-blue-500/30 bg-blue-600/10'
-                    : 'border-transparent hover:bg-white/5'
+                    ? "border-blue-500/30 bg-blue-600/10"
+                    : "border-transparent hover:bg-white/5"
                 }`}
               >
                 <div className="relative">
@@ -747,12 +817,12 @@ export default function PriceTiers() {
                       typeof getPokemonStaticIcon(
                         item.pokemon.num,
                         item.pokemon.name,
-                        'sm',
-                      ) === 'object'
+                        "sm",
+                      ) === "object"
                         ? (getPokemonStaticIcon(
                             item.pokemon.num,
                             item.pokemon.name,
-                            'sm',
+                            "sm",
                           ) as any)
                         : {}
                     }
@@ -771,7 +841,7 @@ export default function PriceTiers() {
                     )}
                 </div>
                 <span
-                  className={`truncate text-[11px] font-black ${selectedUnassigned.includes(item.pokemon.id) ? 'text-blue-500' : 'text-gray-500 group-hover:text-gray-800 dark:text-gray-400 dark:group-hover:text-gray-200'}`}
+                  className={`truncate text-[11px] font-black ${selectedUnassigned.includes(item.pokemon.id) ? "text-blue-500" : "text-gray-500 group-hover:text-gray-800 dark:text-gray-400 dark:group-hover:text-gray-200"}`}
                   title={item.pokemon.name}
                 >
                   {item.pokemon.nameCn || item.pokemon.name}
@@ -783,7 +853,7 @@ export default function PriceTiers() {
 
         {/* Center Column: Tiers */}
         <div
-          className={`custom-scrollbar flex-1 space-y-4 overflow-y-auto pr-2 pb-32 md:pb-0 ${activeMobileTab === 'tiers' ? 'block' : 'hidden md:block'}`}
+          className={`custom-scrollbar flex-1 space-y-4 overflow-y-auto pr-2 pb-32 md:pb-0 ${activeMobileTab === "tiers" ? "block" : "hidden md:block"}`}
         >
           <div className="flex items-center justify-between px-2 pt-2">
             <h2 className="text-xs font-black tracking-widest text-gray-400 uppercase dark:text-gray-500">
@@ -817,12 +887,12 @@ export default function PriceTiers() {
               key={tier.id}
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => {
-                e.preventDefault()
-                const raw = e.dataTransfer.getData('application/x-tier-index')
-                if (raw !== '') handleTierDrop(e, tierIndex)
-                else handleDrop(tier.id)
+                e.preventDefault();
+                const raw = e.dataTransfer.getData("application/x-tier-index");
+                if (raw !== "") handleTierDrop(e, tierIndex);
+                else handleDrop(tier.id);
               }}
-              className={`relative overflow-hidden rounded-3xl border border-gray-200 bg-white pl-2 shadow-sm transition-opacity dark:border-white/5 dark:bg-gray-900 ${draggedTierIndex === tierIndex ? 'opacity-50' : ''}`}
+              className={`relative overflow-hidden rounded-3xl border border-gray-200 bg-white pl-2 shadow-sm transition-opacity dark:border-white/5 dark:bg-gray-900 ${draggedTierIndex === tierIndex ? "opacity-50" : ""}`}
             >
               <div
                 className="absolute inset-y-0 left-0 w-2"
@@ -852,7 +922,7 @@ export default function PriceTiers() {
                   className="w-24 flex-shrink-0 bg-transparent text-lg font-black focus:outline-none"
                   value={tier.name}
                   style={{ color: tier.color }}
-                  onChange={(e) => updateTier(tier.id, 'name', e.target.value)}
+                  onChange={(e) => updateTier(tier.id, "name", e.target.value)}
                 />
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-gray-400 dark:text-gray-500">
@@ -865,7 +935,7 @@ export default function PriceTiers() {
                     onChange={(e) =>
                       updateTier(
                         tier.id,
-                        'price',
+                        "price",
                         parseInt(e.target.value) || 0,
                       )
                     }
@@ -913,8 +983,8 @@ export default function PriceTiers() {
                   >
                     <button
                       onClick={(e) => {
-                        e.stopPropagation()
-                        removePokemonFromTier(p.pokemon.id, tier.id)
+                        e.stopPropagation();
+                        removePokemonFromTier(p.pokemon.id, tier.id);
                       }}
                       className="absolute -top-1 -right-1 hidden h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white shadow-sm transition group-hover:flex hover:bg-red-600"
                       title="移除"
@@ -939,12 +1009,12 @@ export default function PriceTiers() {
                         typeof getPokemonStaticIcon(
                           p.pokemon.num,
                           p.pokemon.name,
-                          'md',
-                        ) === 'object'
+                          "md",
+                        ) === "object"
                           ? (getPokemonStaticIcon(
                               p.pokemon.num,
                               p.pokemon.name,
-                              'md',
+                              "md",
                             ) as any)
                           : {}
                       }
@@ -985,7 +1055,7 @@ export default function PriceTiers() {
 
         {/* Right Column: Settings & Analysis */}
         <div
-          className={`flex h-full w-full flex-1 flex-col space-y-4 md:w-80 md:flex-none ${activeMobileTab === 'settings' ? 'block' : 'hidden md:block'}`}
+          className={`flex h-full w-full flex-1 flex-col space-y-4 md:w-80 md:flex-none ${activeMobileTab === "settings" ? "block" : "hidden md:block"}`}
         >
           <div className="flex h-full flex-col overflow-hidden rounded-3xl border border-gray-200 bg-white p-6 shadow-sm dark:border-white/5 dark:bg-gray-900">
             <div className="flex-none space-y-6">
@@ -1012,13 +1082,13 @@ export default function PriceTiers() {
                       DP 目标模式
                     </span>
                     <div className="flex rounded-xl bg-gray-100 p-1 dark:bg-black/40">
-                      {(['BEST', 'MINIMUM'] as const).map((mode) => (
+                      {(["BEST", "MINIMUM"] as const).map((mode) => (
                         <button
                           key={mode}
                           onClick={() => setDpTargetMode(mode)}
-                          className={`rounded-lg px-3 py-1 text-[10px] font-black transition ${dpTargetMode === mode ? 'bg-white text-blue-500 shadow-sm dark:bg-gray-700' : 'text-gray-500'}`}
+                          className={`rounded-lg px-3 py-1 text-[10px] font-black transition ${dpTargetMode === mode ? "bg-white text-blue-500 shadow-sm dark:bg-gray-700" : "text-gray-500"}`}
                         >
-                          {mode === 'BEST' ? '最高性价比' : '最低预算'}
+                          {mode === "BEST" ? "最高性价比" : "最低预算"}
                         </button>
                       ))}
                     </div>
@@ -1037,7 +1107,7 @@ export default function PriceTiers() {
                   disabled={computingDp}
                   className="flex items-center gap-1 rounded-xl p-2 text-xs font-bold text-blue-500 transition hover:bg-blue-50 dark:hover:bg-blue-500/10"
                 >
-                  {computingDp ? '计算中...' : '开始分析'}
+                  {computingDp ? "计算中..." : "开始分析"}
                 </button>
               </div>
 
@@ -1057,8 +1127,8 @@ export default function PriceTiers() {
                         <span
                           className={
                             res.remaining === 0
-                              ? 'text-green-500'
-                              : 'text-blue-500'
+                              ? "text-green-500"
+                              : "text-blue-500"
                           }
                         >
                           剩余 {res.remaining}G
@@ -1107,8 +1177,8 @@ export default function PriceTiers() {
                 <button
                   key={tier.id}
                   onClick={(e) => {
-                    e.stopPropagation()
-                    moveSelectedToTier(tier.id)
+                    e.stopPropagation();
+                    moveSelectedToTier(tier.id);
                   }}
                   className="group flex w-full items-center gap-3 px-4 py-2.5 text-left transition hover:bg-gray-50 dark:hover:bg-white/5"
                 >
@@ -1129,11 +1199,11 @@ export default function PriceTiers() {
       {/* Mobile Tab Bar */}
       <nav className="fixed right-0 bottom-0 left-0 z-[90] flex items-center justify-around border-t border-gray-200 bg-white/95 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur-xl md:hidden dark:border-white/10 dark:bg-gray-900/95">
         <button
-          onClick={() => setActiveMobileTab('unassigned')}
-          className={`flex flex-1 flex-col items-center gap-1 py-1 transition ${activeMobileTab === 'unassigned' ? 'text-blue-500' : 'text-gray-400'}`}
+          onClick={() => setActiveMobileTab("unassigned")}
+          className={`flex flex-1 flex-col items-center gap-1 py-1 transition ${activeMobileTab === "unassigned" ? "text-blue-500" : "text-gray-400"}`}
         >
           <div
-            className={`rounded-xl p-1.5 transition ${activeMobileTab === 'unassigned' ? 'bg-blue-500/10' : ''}`}
+            className={`rounded-xl p-1.5 transition ${activeMobileTab === "unassigned" ? "bg-blue-500/10" : ""}`}
           >
             <svg
               className="h-5 w-5"
@@ -1152,11 +1222,11 @@ export default function PriceTiers() {
           <span className="text-[10px] font-black uppercase">未分配</span>
         </button>
         <button
-          onClick={() => setActiveMobileTab('tiers')}
-          className={`flex flex-1 flex-col items-center gap-1 py-1 transition ${activeMobileTab === 'tiers' ? 'text-blue-500' : 'text-gray-400'}`}
+          onClick={() => setActiveMobileTab("tiers")}
+          className={`flex flex-1 flex-col items-center gap-1 py-1 transition ${activeMobileTab === "tiers" ? "text-blue-500" : "text-gray-400"}`}
         >
           <div
-            className={`rounded-xl p-1.5 transition ${activeMobileTab === 'tiers' ? 'bg-blue-500/10' : ''}`}
+            className={`rounded-xl p-1.5 transition ${activeMobileTab === "tiers" ? "bg-blue-500/10" : ""}`}
           >
             <svg
               className="h-5 w-5"
@@ -1175,11 +1245,11 @@ export default function PriceTiers() {
           <span className="text-[10px] font-black uppercase">分档位</span>
         </button>
         <button
-          onClick={() => setActiveMobileTab('settings')}
-          className={`flex flex-1 flex-col items-center gap-1 py-1 transition ${activeMobileTab === 'settings' ? 'text-blue-500' : 'text-gray-400'}`}
+          onClick={() => setActiveMobileTab("settings")}
+          className={`flex flex-1 flex-col items-center gap-1 py-1 transition ${activeMobileTab === "settings" ? "text-blue-500" : "text-gray-400"}`}
         >
           <div
-            className={`rounded-xl p-1.5 transition ${activeMobileTab === 'settings' ? 'bg-blue-500/10' : ''}`}
+            className={`rounded-xl p-1.5 transition ${activeMobileTab === "settings" ? "bg-blue-500/10" : ""}`}
           >
             <svg
               className="h-5 w-5"
@@ -1229,5 +1299,5 @@ export default function PriceTiers() {
         }
       `}</style>
     </div>
-  )
+  );
 }

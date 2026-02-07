@@ -19,7 +19,7 @@ services:
     depends_on:
       - db
     expose:
-      - '3000'
+      - "3000"
     deploy:
       resources:
         limits:
@@ -28,18 +28,17 @@ services:
           memory: 512M
 
   # 专门用于初始化和维护的容器，包含所有开发工具
+  # 仅用 env_file 注入 .env，避免 sudo 下主机未 source .env 导致 DATABASE_URL 为空
   init:
     build:
       context: .
-      target: builder
+      target: init
       args:
         - CACHE_BUST=${CACHE_BUST:-1}
         - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8080}
-    profiles: ['tools']
-    environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - ADMIN_USERNAME=${ADMIN_USERNAME:-}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+    profiles: ["tools"]
+    env_file:
+      - .env
     depends_on:
       - db
 
@@ -54,13 +53,13 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     expose:
-      - '5432'
+      - "5432"
 
   nginx:
     image: nginx:alpine
     restart: always
     ports:
-      - '8080:80'
+      - "8080:80"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d
     depends_on:

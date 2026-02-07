@@ -1,43 +1,43 @@
-import Link from 'next/link'
-import { ReactNode } from 'react'
+import Link from "next/link";
+import { ReactNode } from "react";
 
 interface HeaderProps {
-  variant?: 'admin' | 'player'
-  title: string | ReactNode
-  leftSlot?: ReactNode
-  rightSlot?: ReactNode
-  subtitle?: ReactNode
-  transparent?: boolean
-  className?: string
+  variant?: "admin" | "player";
+  title: string | ReactNode;
+  leftSlot?: ReactNode;
+  rightSlot?: ReactNode;
+  subtitle?: ReactNode;
+  transparent?: boolean;
+  className?: string;
 }
 
 export function Header({
-  variant = 'admin',
+  variant = "admin",
   title,
   leftSlot,
   rightSlot,
   subtitle,
   transparent = false,
-  className = '',
+  className = "",
 }: HeaderProps) {
   const baseClasses =
-    'border-b px-4 md:px-8 py-3 md:py-4 flex items-center gap-3 md:gap-6 shadow-sm sticky top-0 z-50 transition-all'
+    "border-b px-4 md:px-8 py-3 md:py-4 flex items-center gap-3 md:gap-6 shadow-sm sticky top-0 z-50 transition-all";
 
   const variantClasses = {
     admin: transparent
-      ? 'bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-gray-200 dark:border-gray-800'
-      : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800',
+      ? "bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-gray-200 dark:border-gray-800"
+      : "bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800",
     player: transparent
-      ? 'bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-gray-200 dark:border-gray-800'
-      : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800',
-  }
+      ? "bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-gray-200 dark:border-gray-800"
+      : "bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800",
+  };
 
   return (
     <nav className={`${baseClasses} ${variantClasses[variant]} ${className}`}>
       {leftSlot && <div className="flex-shrink-0">{leftSlot}</div>}
 
       <div className="flex min-w-0 flex-col">
-        {typeof title === 'string' ? (
+        {typeof title === "string" ? (
           <h1 className="text-lg leading-tight font-black tracking-tight break-words whitespace-normal text-gray-800 md:text-xl lg:text-2xl dark:text-gray-100">
             {title}
           </h1>
@@ -53,15 +53,15 @@ export function Header({
         </div>
       )}
     </nav>
-  )
+  );
 }
 
 interface BackButtonProps {
-  href: string
-  title?: string
+  href: string;
+  title?: string;
 }
 
-export function BackButton({ href, title = '返回' }: BackButtonProps) {
+export function BackButton({ href, title = "返回" }: BackButtonProps) {
   return (
     <Link
       href={href}
@@ -82,15 +82,15 @@ export function BackButton({ href, title = '返回' }: BackButtonProps) {
         />
       </svg>
     </Link>
-  )
+  );
 }
 
 interface HomeButtonProps {
-  href: string
-  title?: string
+  href: string;
+  title?: string;
 }
 
-export function HomeButton({ href, title = '主页' }: HomeButtonProps) {
+export function HomeButton({ href, title = "主页" }: HomeButtonProps) {
   return (
     <Link
       href={href}
@@ -111,5 +111,5 @@ export function HomeButton({ href, title = '主页' }: HomeButtonProps) {
         />
       </svg>
     </Link>
-  )
+  );
 }

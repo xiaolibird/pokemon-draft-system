@@ -1,12 +1,13 @@
-'use client'
+"use client";
 
-import { getPokemonStaticIcon } from '@/app/lib/utils/helpers'
+import { getPokemonStaticIcon } from "@/app/lib/utils/helpers";
+import { getBidActionTheme } from "@/app/lib/utils/theme-helpers";
 
 interface BidHistoryItemProps {
-  action: any
-  isHighestBid?: boolean
-  maxBid?: number
-  minBid?: number
+  action: any;
+  isHighestBid?: boolean;
+  maxBid?: number;
+  minBid?: number;
 }
 
 export function BidHistoryItem({
@@ -16,107 +17,25 @@ export function BidHistoryItem({
   minBid = 0,
 }: BidHistoryItemProps) {
   const actor =
-    action.details?.actorUsername || action.player?.username || '系统'
-  const bidAmount = action.details?.bidAmount || 0
-  const actionType = action.actionType
-  const pokemonName = action.details?.pokemonName
+    action.details?.actorUsername || action.player?.username || "系统";
+  const bidAmount = action.details?.bidAmount || 0;
+  const actionType = action.actionType;
+  const pokemonName = action.details?.pokemonName;
 
   // Calculate percentage for HP bar (0-100%)
-  const range = maxBid - minBid
+  const range = maxBid - minBid;
   const percentage =
     range > 0
       ? Math.min(100, Math.max(0, ((bidAmount - minBid) / range) * 100))
-      : 0
+      : 0;
 
   // Theme configuration based on action type
-  const getTheme = () => {
-    switch (actionType) {
-      case 'BID':
-        return isHighestBid
-          ? {
-              name: '最高出价',
-              color: 'amber',
-              bgGradient:
-                'bg-gradient-to-r from-yellow-300/80 via-amber-400/70 to-orange-400/80 dark:from-yellow-500/60 dark:via-amber-500/50 dark:to-orange-500/60',
-              border: 'border-yellow-400/50 dark:border-yellow-500/50',
-              text: 'text-amber-900 dark:text-amber-100',
-              badge: 'text-amber-800 dark:text-amber-200/90',
-              img: '/images/gholdengo-bg.webp',
-              imgPos: 'left 20% top 15%',
-            }
-          : {
-              name: '出价',
-              color: 'blue',
-              bgGradient:
-                'bg-gradient-to-r from-blue-300/60 via-blue-400/50 to-indigo-400/60 dark:from-blue-600/40 dark:via-blue-500/30 dark:to-indigo-500/40',
-              border: 'border-blue-300/30 dark:border-blue-500/30',
-              text: 'text-blue-900 dark:text-blue-100',
-              badge: 'text-blue-800 dark:text-blue-200/80',
-              img: '/images/999Gimmighoul.webp',
-              imgPos: 'left 80% top 30%',
-            }
-      case 'PICK':
-        return {
-          name: '获得',
-          color: 'emerald',
-          bgGradient:
-            'bg-gradient-to-r from-emerald-300/60 via-teal-400/50 to-cyan-400/60 dark:from-emerald-600/40 dark:via-teal-500/30 dark:to-cyan-500/40',
-          border: 'border-emerald-300/30 dark:border-emerald-500/30',
-          text: 'text-emerald-900 dark:text-emerald-100',
-          badge: 'text-emerald-800 dark:text-emerald-200/80',
-          mainText: pokemonName,
-        }
-      case 'NOMINATE':
-        return {
-          name: '提名',
-          color: 'indigo',
-          bgGradient:
-            'bg-gradient-to-r from-indigo-300/50 via-indigo-400/40 to-violet-400/50 dark:from-indigo-600/30 dark:via-indigo-700/20 dark:to-violet-700/30',
-          border:
-            'border-indigo-300/40 dark:border-indigo-600/40 shadow-indigo-500/5',
-          text: 'text-indigo-900 dark:text-indigo-100',
-          badge:
-            'text-indigo-800 bg-white/40 dark:text-indigo-200/80 dark:bg-black/30',
-          mainText: pokemonName,
-        }
-      case 'ADMIN_UNDO':
-        return {
-          name: '撤销',
-          color: 'rose',
-          bgGradient:
-            'bg-gradient-to-r from-rose-300/50 via-pink-400/40 to-red-400/50 dark:from-rose-600/30 dark:via-pink-600/20 dark:to-red-700/30',
-          border:
-            'border-rose-300/40 dark:border-rose-600/40 shadow-rose-500/5',
-          text: 'text-rose-900 dark:text-rose-100',
-          badge:
-            'text-rose-800 bg-white/40 dark:text-rose-200/80 dark:bg-black/30',
-          mainText: pokemonName || '上一步',
-        }
-      default:
-        let defaultName = '系统'
-        if (actionType === 'ADMIN_PAUSE') defaultName = '暂停比赛'
-        if (actionType === 'ADMIN_RESUME') defaultName = '恢复比赛'
-        if (actionType === 'ADMIN_SKIP') defaultName = `跳过选手`
-        if (actionType === 'NOMINATE_SKIP') defaultName = '超时跳过'
-
-        return {
-          name: defaultName,
-          color: 'gray',
-          bgGradient:
-            'bg-gradient-to-r from-gray-300/40 via-slate-400/30 to-gray-400/40 dark:from-gray-600/30 dark:via-slate-500/20 dark:to-gray-500/30',
-          border: 'border-gray-300/30 dark:border-gray-500/30',
-          text: 'text-slate-900 dark:text-slate-100',
-          badge:
-            'text-slate-800 bg-white/40 dark:text-slate-200/80 dark:bg-black/30',
-          mainText:
-            actionType === 'ADMIN_SKIP'
-              ? action.details?.skippedUsername || '当前玩家'
-              : '',
-        }
-    }
-  }
-
-  const theme = getTheme()
+  const theme = getBidActionTheme(
+    actionType,
+    isHighestBid,
+    pokemonName,
+    action.details,
+  );
 
   return (
     <div
@@ -129,20 +48,20 @@ export function BidHistoryItem({
             className="absolute inset-0 bg-no-repeat transition-transform duration-700"
             style={{
               backgroundImage: `url('${theme.img}')`,
-              backgroundSize: 'cover',
+              backgroundSize: "cover",
               backgroundPosition: theme.imgPos,
               maskImage:
-                'radial-gradient(circle at center, black 40%, transparent 100%)',
+                "radial-gradient(circle at center, black 40%, transparent 100%)",
               WebkitMaskImage:
-                'radial-gradient(circle at center, black 40%, transparent 100%)',
+                "radial-gradient(circle at center, black 40%, transparent 100%)",
               opacity: 0.85,
-              transform: 'scale(1.2)',
+              transform: "scale(1.2)",
             }}
           />
         ) : (
-          (actionType === 'PICK' ||
-            actionType === 'NOMINATE' ||
-            actionType === 'ADMIN_UNDO') && (
+          (actionType === "PICK" ||
+            actionType === "NOMINATE" ||
+            actionType === "ADMIN_UNDO") && (
             <div className="absolute right-[-10%] bottom-[-20%] -rotate-12 transform opacity-20 blur-[1px] dark:opacity-30">
               <div className="flex h-24 w-24 items-center justify-center rounded-full bg-white/20 dark:bg-black/20">
                 <svg
@@ -165,15 +84,15 @@ export function BidHistoryItem({
         <div
           className={`transition-all duration-500 ${theme.bgGradient}`}
           style={{
-            width: actionType === 'BID' ? `${percentage}%` : '100%',
+            width: actionType === "BID" ? `${percentage}%` : "100%",
             clipPath:
-              actionType === 'BID'
-                ? 'polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)'
-                : 'none',
+              actionType === "BID"
+                ? "polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%)"
+                : "none",
           }}
         />
         {/* Unfilled part is transparent so image shows through */}
-        {actionType === 'BID' && <div className="flex-1" />}
+        {actionType === "BID" && <div className="flex-1" />}
       </div>
 
       {/* Content */}
@@ -189,8 +108,8 @@ export function BidHistoryItem({
             className={`rounded bg-white/20 px-2 py-0.5 text-[10px] shadow-sm backdrop-blur-md dark:bg-black/20 ${theme.badge}`}
           >
             {new Date(action.timestamp).toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
+              hour: "2-digit",
+              minute: "2-digit",
             })}
           </span>
         </div>
@@ -202,9 +121,9 @@ export function BidHistoryItem({
           >
             {theme.name}
           </span>
-          {actionType === 'BID' ? (
+          {actionType === "BID" ? (
             <span
-              className={`rounded bg-white/20 px-2 py-0.5 font-mono font-black shadow-sm backdrop-blur-md dark:bg-black/20 ${isHighestBid ? 'text-2xl' : 'text-xl'} ${theme.text} drop-shadow-sm`}
+              className={`rounded bg-white/20 px-2 py-0.5 font-mono font-black shadow-sm backdrop-blur-md dark:bg-black/20 ${isHighestBid ? "text-2xl" : "text-xl"} ${theme.text} drop-shadow-sm`}
             >
               {bidAmount} G
             </span>
@@ -218,5 +137,5 @@ export function BidHistoryItem({
         </div>
       </div>
     </div>
-  )
+  );
 }

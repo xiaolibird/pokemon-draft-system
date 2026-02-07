@@ -232,6 +232,9 @@ reset_db() {
     read -p "输入 'confirm' 继续: " CONFIRM
     [ "$CONFIRM" != "confirm" ] && { echo "已取消"; return; }
     
+    # 确保数据库已启动
+    start_db
+    
     echo -e "\n${BLUE}[1/4] 重置数据库结构...${NC}"
     npx prisma migrate reset --force
     echo -e "\n${BLUE}[2/4] 同步 schema...${NC}"

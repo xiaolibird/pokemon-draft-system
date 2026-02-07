@@ -1,23 +1,23 @@
-'use client'
+"use client";
 
-import { useState, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
-import { apiFetch } from '@/app/lib/api/fetch'
-import { Header, HomeButton } from '@/app/components/Header'
-import { HeaderButton } from '@/app/components/HeaderButton'
-import { getPokemonStaticIcon } from '@/app/lib/utils/helpers'
-import { TYPE_COLORS } from '@/app/lib/utils/constants'
-import { useSearchHints } from '@/app/lib/hooks/useSearchHints'
-import { Loading } from '@/app/components/Loading'
-import ThemeToggle from '@/app/components/ThemeToggle'
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { apiFetch } from "@/app/lib/api/fetch";
+import { Header, HomeButton } from "@/app/components/Header";
+import { HeaderButton } from "@/app/components/HeaderButton";
+import { getPokemonStaticIcon } from "@/app/lib/utils/helpers";
+import { TYPE_COLORS } from "@/app/lib/utils/constants";
+import { useSearchHints } from "@/app/lib/hooks/useSearchHints";
+import { Loading } from "@/app/components/Loading";
+import ThemeToggle from "@/app/components/ThemeToggle";
 
-const ALL_TYPES = Object.keys(TYPE_COLORS)
+const ALL_TYPES = Object.keys(TYPE_COLORS);
 
 export default function CreateContest() {
-  const router = useRouter()
-  const [loading, setLoading] = useState(false)
-  const [previewLoading, setPreviewLoading] = useState(false)
-  const [pokemonList, setPokemonList] = useState<any[]>([])
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [pokemonList, setPokemonList] = useState<any[]>([]);
 
   // UI States
   const [sectionsOpen, setSectionsOpen] = useState({
@@ -25,26 +25,26 @@ export default function CreateContest() {
     stats: true,
     types: false, // Default closed to save space
     gens: false,
-  })
-  const placeholder = useSearchHints()
+  });
+  const placeholder = useSearchHints();
 
   const toggleSection = (name: keyof typeof sectionsOpen) => {
-    setSectionsOpen((prev) => ({ ...prev, [name]: !prev[name] }))
-  }
+    setSectionsOpen((prev) => ({ ...prev, [name]: !prev[name] }));
+  };
 
   // Basic Settings
   const [formData, setFormData] = useState({
-    name: '',
-    ruleSet: 'Regulation H',
-    draftMode: 'SNAKE',
+    name: "",
+    ruleSet: "Regulation H",
+    draftMode: "SNAKE",
     playerTokens: 100,
     maxPokemonPerPlayer: 6,
     auctionBasePrice: 10,
     auctionBidDuration: 30,
     showPlayerPokemon: true,
-    playerDisplayStyle: 'minimal',
+    playerDisplayStyle: "minimal",
     allowTradingDuringDraft: false,
-  })
+  });
 
   // Filter Settings
   const [stats, setStats] = useState<any>({
@@ -55,35 +55,35 @@ export default function CreateContest() {
     spd: [0, 255],
     spe: [0, 255],
     bst: [0, 1000], // Added BST range
-  })
+  });
 
   const [types, setTypes] = useState<{
-    include: string[]
-    exclude: string[]
+    include: string[];
+    exclude: string[];
   }>({
     include: [],
     exclude: [],
-  })
+  });
 
   const [gens, setGens] = useState<{
-    mode: 'OR'
-    include: number[]
-    exclude: number[]
+    mode: "OR";
+    include: number[];
+    exclude: number[];
   }>({
-    mode: 'OR',
+    mode: "OR",
     include: [],
     exclude: [],
-  })
+  });
 
-  const [psQuery, setPsQuery] = useState('')
+  const [psQuery, setPsQuery] = useState("");
 
   // Fetch Preview
   const fetchPreview = useCallback(async () => {
-    setPreviewLoading(true)
+    setPreviewLoading(true);
     try {
-      const res = await apiFetch('/api/admin/pokemon/filter', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await apiFetch("/api/admin/pokemon/filter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           stats,
           types,
@@ -91,30 +91,30 @@ export default function CreateContest() {
           ruleSet: formData.ruleSet,
           query: psQuery,
         }),
-      })
+      });
       if (res.ok) {
-        const data = await res.json()
-        console.log('[DEBUG] Preview fetched:', data.length, 'pokemon')
-        setPokemonList(data)
+        const data = await res.json();
+        console.log("[DEBUG] Preview fetched:", data.length, "pokemon");
+        setPokemonList(data);
       } else {
-        console.error('[DEBUG] Preview fetch failed:', res.status)
+        console.error("[DEBUG] Preview fetch failed:", res.status);
       }
     } catch (err) {
-      console.error(err)
+      console.error(err);
     } finally {
-      setPreviewLoading(false)
+      setPreviewLoading(false);
     }
-  }, [stats, types, gens, formData.ruleSet, psQuery])
+  }, [stats, types, gens, formData.ruleSet, psQuery]);
 
   useEffect(() => {
-    document.title = '宝可梦选秀系统-创建比赛'
-  }, [])
+    document.title = "宝可梦选秀系统-创建比赛";
+  }, []);
   useEffect(() => {
     const timer = setTimeout(() => {
-      fetchPreview()
-    }, 500)
-    return () => clearTimeout(timer)
-  }, [fetchPreview])
+      fetchPreview();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [fetchPreview]);
 
   const handleTypeClick = (type: string) => {
     setTypes((prev) => {
@@ -123,18 +123,18 @@ export default function CreateContest() {
           ...prev,
           include: prev.include.filter((t) => t !== type),
           exclude: [...prev.exclude, type],
-        }
+        };
       } else if (prev.exclude.includes(type)) {
-        return { ...prev, exclude: prev.exclude.filter((t) => t !== type) }
+        return { ...prev, exclude: prev.exclude.filter((t) => t !== type) };
       } else {
         return {
           ...prev,
           include: [...prev.include, type],
           exclude: prev.exclude.filter((t) => t !== type),
-        }
+        };
       }
-    })
-  }
+    });
+  };
 
   const handleGenClick = (gen: number) => {
     setGens((prev) => {
@@ -143,22 +143,22 @@ export default function CreateContest() {
           ...prev,
           include: prev.include.filter((g) => g !== gen),
           exclude: [...prev.exclude, gen],
-        }
+        };
       } else if (prev.exclude.includes(gen)) {
-        return { ...prev, exclude: prev.exclude.filter((g) => g !== gen) }
+        return { ...prev, exclude: prev.exclude.filter((g) => g !== gen) };
       } else {
         return {
           ...prev,
           include: [...prev.include, gen],
           exclude: prev.exclude.filter((g) => g !== gen),
-        }
+        };
       }
-    })
-  }
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
+    e.preventDefault();
+    setLoading(true);
 
     try {
       const body = {
@@ -184,36 +184,36 @@ export default function CreateContest() {
           query: psQuery,
           limit: 10000,
         },
-      }
-      console.log('[DEBUG] Sending payload:', JSON.stringify(body))
-      const res = await apiFetch('/api/admin/contests', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      };
+      console.log("[DEBUG] Sending payload:", JSON.stringify(body));
+      const res = await apiFetch("/api/admin/contests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      })
+      });
 
       if (res.ok) {
-        const data = await res.json()
-        console.log('[DEBUG] Contest created successfully')
+        const data = await res.json();
+        console.log("[DEBUG] Contest created successfully");
         // Redirect based on draft mode
-        if (formData.draftMode === 'SNAKE') {
-          router.push(`/admin/contests/${data.contestId}/price-tiers`)
+        if (formData.draftMode === "SNAKE") {
+          router.push(`/admin/contests/${data.contestId}/price-tiers`);
         } else {
-          router.push(`/admin/contests/${data.contestId}`)
+          router.push(`/admin/contests/${data.contestId}`);
         }
       } else {
-        const err = await res.json()
-        console.error('[DEBUG] Creation failed:', err)
-        alert(err.error || '创建失败')
+        const err = await res.json();
+        console.error("[DEBUG] Creation failed:", err);
+        alert(err.error || "创建失败");
       }
     } catch {
-      alert('网络错误')
+      alert("网络错误");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
-  if (loading) return <Loading text="加载配置中..." />
+  if (loading) return <Loading text="加载配置中..." />;
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-gray-50 font-sans text-gray-900 dark:bg-gray-950 dark:text-white">
@@ -230,7 +230,7 @@ export default function CreateContest() {
               variant="primary"
               size="lg"
             >
-              {loading ? '创建中...' : '提交并生成比赛'}
+              {loading ? "创建中..." : "提交并生成比赛"}
             </HeaderButton>
           </>
         }
@@ -241,14 +241,14 @@ export default function CreateContest() {
         <div className="scrollbar-hide w-full space-y-6 border-r border-gray-200 bg-white p-4 lg:w-1/3 lg:space-y-8 lg:overflow-y-auto lg:p-6 dark:border-white/5 dark:bg-gray-900">
           <section className="overflow-hidden rounded-2xl border border-gray-100 bg-gray-50/50 transition-colors dark:border-white/5 dark:bg-gray-900/50">
             <button
-              onClick={() => toggleSection('basic')}
+              onClick={() => toggleSection("basic")}
               className="flex w-full items-center justify-between p-4 transition hover:bg-gray-100 dark:hover:bg-white/5"
             >
               <h3 className="text-sm font-bold tracking-widest text-gray-400 uppercase dark:text-gray-500">
                 基本配置
               </h3>
               <svg
-                className={`h-4 w-4 text-gray-400 transition-transform ${sectionsOpen.basic ? 'rotate-180' : ''}`}
+                className={`h-4 w-4 text-gray-400 transition-transform ${sectionsOpen.basic ? "rotate-180" : ""}`}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -371,7 +371,7 @@ export default function CreateContest() {
                   </div>
                 </div>
 
-                {formData.draftMode === 'AUCTION' && (
+                {formData.draftMode === "AUCTION" && (
                   <div className="space-y-4 border-t border-gray-100 pt-4">
                     <div>
                       <label className="text-xs font-bold text-gray-500">
@@ -446,14 +446,14 @@ export default function CreateContest() {
 
           <section className="overflow-hidden rounded-2xl border border-gray-100 bg-gray-50/50 transition-colors dark:border-white/5 dark:bg-gray-900/50">
             <button
-              onClick={() => toggleSection('stats')}
+              onClick={() => toggleSection("stats")}
               className="flex w-full items-center justify-between p-4 transition hover:bg-gray-100 dark:hover:bg-white/5"
             >
               <h3 className="text-sm font-bold tracking-widest text-gray-400 uppercase dark:text-gray-500">
                 种族值区间 (Min - Max)
               </h3>
               <svg
-                className={`h-4 w-4 text-gray-400 transition-transform ${sectionsOpen.stats ? 'rotate-180' : ''}`}
+                className={`h-4 w-4 text-gray-400 transition-transform ${sectionsOpen.stats ? "rotate-180" : ""}`}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -469,7 +469,7 @@ export default function CreateContest() {
 
             {sectionsOpen.stats && (
               <div className="animate-in slide-in-from-top-2 grid grid-cols-1 gap-4 p-4 pt-0 duration-200">
-                {['hp', 'atk', 'def', 'spa', 'spd', 'spe', 'bst'].map((s) => (
+                {["hp", "atk", "def", "spa", "spd", "spe", "bst"].map((s) => (
                   <div key={s} className="flex items-center gap-3">
                     <span className="w-8 text-[10px] font-black text-gray-400 uppercase dark:text-gray-500">
                       {s}
@@ -489,8 +489,8 @@ export default function CreateContest() {
                       <div
                         className="absolute h-full rounded-full bg-blue-500 transition-all"
                         style={{
-                          left: `${(stats[s][0] / (s === 'bst' ? 1000 : 255)) * 100}%`,
-                          right: `${100 - (stats[s][1] / (s === 'bst' ? 1000 : 255)) * 100}%`,
+                          left: `${(stats[s][0] / (s === "bst" ? 1000 : 255)) * 100}%`,
+                          right: `${100 - (stats[s][1] / (s === "bst" ? 1000 : 255)) * 100}%`,
                         }}
                       ></div>
                     </div>
@@ -513,14 +513,14 @@ export default function CreateContest() {
 
           <section className="overflow-hidden rounded-2xl border border-gray-100 bg-gray-50/50 transition-colors dark:border-white/5 dark:bg-gray-900/50">
             <button
-              onClick={() => toggleSection('types')}
+              onClick={() => toggleSection("types")}
               className="flex w-full items-center justify-between p-4 transition hover:bg-gray-100 dark:hover:bg-white/5"
             >
               <h3 className="text-sm font-bold tracking-widest text-gray-400 uppercase dark:text-gray-500">
                 属性过滤
               </h3>
               <svg
-                className={`h-4 w-4 text-gray-400 transition-transform ${sectionsOpen.types ? 'rotate-180' : ''}`}
+                className={`h-4 w-4 text-gray-400 transition-transform ${sectionsOpen.types ? "rotate-180" : ""}`}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -538,23 +538,23 @@ export default function CreateContest() {
               <div className="animate-in slide-in-from-top-2 p-4 pt-0 duration-200">
                 <div className="flex flex-wrap gap-2">
                   {ALL_TYPES.map((t) => {
-                    const isInc = types.include.includes(t)
-                    const isExc = types.exclude.includes(t)
+                    const isInc = types.include.includes(t);
+                    const isExc = types.exclude.includes(t);
                     return (
                       <button
                         key={t}
                         onClick={() => handleTypeClick(t)}
                         className={`rounded-full border px-3 py-1 text-xs font-bold transition-all ${
                           isInc
-                            ? 'border-blue-600 bg-blue-600 text-white shadow-lg shadow-blue-100 dark:shadow-blue-900/40'
+                            ? "border-blue-600 bg-blue-600 text-white shadow-lg shadow-blue-100 dark:shadow-blue-900/40"
                             : isExc
-                              ? 'border-red-600 bg-red-600 text-white line-through shadow-lg shadow-red-100 dark:shadow-red-900/40'
-                              : 'border-gray-100 bg-gray-100 text-gray-500 hover:bg-gray-200 dark:border-white/5 dark:bg-white/5 dark:text-gray-400 dark:hover:bg-white/10'
+                              ? "border-red-600 bg-red-600 text-white line-through shadow-lg shadow-red-100 dark:shadow-red-900/40"
+                              : "border-gray-100 bg-gray-100 text-gray-500 hover:bg-gray-200 dark:border-white/5 dark:bg-white/5 dark:text-gray-400 dark:hover:bg-white/10"
                         }`}
                       >
-                        {isInc ? '+' : isExc ? '-' : ''} {t}
+                        {isInc ? "+" : isExc ? "-" : ""} {t}
                       </button>
-                    )
+                    );
                   })}
                 </div>
                 <p className="mt-3 text-[10px] font-bold tracking-wider text-gray-400 uppercase dark:text-gray-600">
@@ -566,14 +566,14 @@ export default function CreateContest() {
 
           <section className="overflow-hidden rounded-2xl border border-gray-100 bg-gray-50/50 transition-colors dark:border-white/5 dark:bg-gray-900/50">
             <button
-              onClick={() => toggleSection('gens')}
+              onClick={() => toggleSection("gens")}
               className="flex w-full items-center justify-between p-4 transition hover:bg-gray-100 dark:hover:bg-white/5"
             >
               <h3 className="text-sm font-bold tracking-widest text-gray-400 uppercase dark:text-gray-500">
                 世代过滤
               </h3>
               <svg
-                className={`h-4 w-4 text-gray-400 transition-transform ${sectionsOpen.gens ? 'rotate-180' : ''}`}
+                className={`h-4 w-4 text-gray-400 transition-transform ${sectionsOpen.gens ? "rotate-180" : ""}`}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -596,10 +596,10 @@ export default function CreateContest() {
                       onClick={() => handleGenClick(g)}
                       className={`flex h-8 w-8 items-center justify-center rounded-lg border text-xs font-bold transition-all ${
                         gens.include.includes(g)
-                          ? 'border-blue-600 bg-blue-600 text-white shadow-lg shadow-blue-100 dark:shadow-blue-900/40'
+                          ? "border-blue-600 bg-blue-600 text-white shadow-lg shadow-blue-100 dark:shadow-blue-900/40"
                           : gens.exclude.includes(g)
-                            ? 'border-red-600 bg-red-600 text-white line-through shadow-lg shadow-red-100 dark:shadow-red-900/40'
-                            : 'border-gray-100 bg-gray-100 text-gray-500 hover:bg-gray-200 dark:border-white/5 dark:bg-white/5 dark:text-gray-400 dark:hover:bg-white/10'
+                            ? "border-red-600 bg-red-600 text-white line-through shadow-lg shadow-red-100 dark:shadow-red-900/40"
+                            : "border-gray-100 bg-gray-100 text-gray-500 hover:bg-gray-200 dark:border-white/5 dark:bg-white/5 dark:text-gray-400 dark:hover:bg-white/10"
                       }`}
                     >
                       {g}
@@ -618,7 +618,7 @@ export default function CreateContest() {
               <h2 className="flex items-center gap-2 text-lg font-black text-gray-800 dark:text-white">
                 <span>预览池</span>
                 <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-white/10 dark:text-gray-300">
-                  {previewLoading ? '...' : pokemonList.length}
+                  {previewLoading ? "..." : pokemonList.length}
                 </span>
               </h2>
               <div className="font-mono text-xs text-gray-400 dark:text-gray-500">
@@ -675,12 +675,12 @@ export default function CreateContest() {
                   <div
                     key={p.id}
                     className="flex h-10 w-10 cursor-help items-center justify-center rounded border border-gray-100 bg-white transition-all hover:z-10 hover:scale-125 hover:border-blue-500 hover:shadow-lg dark:border-white/10 dark:bg-white/5"
-                    title={`${p.nameCn || p.name} (#${p.num})\n属性: ${p.types.join('/')}\nHP:${p.hp} 物攻:${p.atk} 物防:${p.def} 特攻:${p.spa} 特防:${p.spd} 速度:${p.spe}`}
+                    title={`${p.nameCn || p.name} (#${p.num})\n属性: ${p.types.join("/")}\nHP:${p.hp} 物攻:${p.atk} 物防:${p.def} 特攻:${p.spa} 特防:${p.spd} 速度:${p.spe}`}
                   >
                     <span
                       className="picon"
                       style={
-                        typeof getPokemonStaticIcon(p.num, p.name) === 'object'
+                        typeof getPokemonStaticIcon(p.num, p.name) === "object"
                           ? (getPokemonStaticIcon(p.num, p.name) as any)
                           : {}
                       }
@@ -701,5 +701,5 @@ export default function CreateContest() {
         }
       `}</style>
     </div>
-  )
+  );
 }

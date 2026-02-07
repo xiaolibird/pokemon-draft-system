@@ -1,18 +1,18 @@
-'use client'
+"use client";
 
-import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export default function TradeCenter() {
-  const router = useRouter()
+  const router = useRouter();
 
   useEffect(() => {
     // Optional: Auto redirect after few seconds
     const timer = setTimeout(() => {
-      router.push('/player/room')
-    }, 3000)
-    return () => clearTimeout(timer)
-  }, [router])
+      router.push("/player/room");
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [router]);
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gray-950 p-8 font-sans text-white">
@@ -23,11 +23,11 @@ export default function TradeCenter() {
         交易中心目前处于维护或关闭状态。
       </p>
       <button
-        onClick={() => router.push('/player/room')}
+        onClick={() => router.push("/player/room")}
         className="rounded-xl bg-white/10 px-6 py-2 font-black transition hover:bg-white/20"
       >
         返回房间
       </button>
     </div>
-  )
+  );
 }

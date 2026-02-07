@@ -3,7 +3,7 @@
   display: inline-block;
   width: 40px;
   height: 30px;
-  background-image: url('/pokesprite.png');
+  background-image: url("/pokesprite.png");
   background-repeat: no-repeat;
   background-size: 480px 4080px;
   /* Actual sprite sheet dimensions */

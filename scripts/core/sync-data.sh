@@ -29,9 +29,9 @@ echo -e "\n${BLUE}[3/6] Stage 1: 拉取 Showdown 原始数据...${NC}"
 npx tsx "$PROJECT_ROOT/scripts/core/data/fetch-showdown.ts"
 echo -e "${GREEN}✓ Stage 1 完成${NC}"
 
-echo -e "\n${BLUE}[4/6] Stage 2: 提取规则数据...${NC}"
-npx tsx "$PROJECT_ROOT/scripts/core/data/extract-rulesets.ts"
-echo -e "${GREEN}✓ Stage 2 完成${NC}"
+# echo -e "\n${BLUE}[4/6] Stage 2: 提取规则数据 (Deprecated)...${NC}"
+# npx tsx "$PROJECT_ROOT/scripts/core/data/extract-rulesets.deprecated.ts"
+# echo -e "${GREEN}✓ Stage 2 Skipped${NC}"
 
 echo -e "\n${BLUE}[5/6] Stage 3: 导入宝可梦数据...${NC}"
 npx tsx "$PROJECT_ROOT/scripts/core/data/import-pokemon.ts"

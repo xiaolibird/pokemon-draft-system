@@ -1,8 +1,8 @@
-import Link from 'next/link'
-import { ComponentProps } from 'react'
+import Link from "next/link";
+import { ComponentProps } from "react";
 
-interface AuthInputProps extends ComponentProps<'input'> {
-  label?: string
+interface AuthInputProps extends ComponentProps<"input"> {
+  label?: string;
 }
 
 export function AuthInput({ className, ...props }: AuthInputProps) {
@@ -11,39 +11,39 @@ export function AuthInput({ className, ...props }: AuthInputProps) {
       className={`w-full rounded-3xl border border-white/10 bg-black/20 px-8 py-5 text-lg font-bold text-white placeholder-slate-500 transition-all focus:bg-black/30 focus:ring-4 focus:outline-none ${className}`}
       {...props}
     />
-  )
+  );
 }
 
-interface AuthButtonProps extends ComponentProps<'button'> {
-  isLoading?: boolean
-  loadingText?: string
-  gradient?: 'brand' | 'blue' | 'emerald' | 'blue-indigo' | 'emerald-reverse'
+interface AuthButtonProps extends ComponentProps<"button"> {
+  isLoading?: boolean;
+  loadingText?: string;
+  gradient?: "brand" | "blue" | "emerald" | "blue-indigo" | "emerald-reverse";
 }
 
 export function AuthButton({
   children,
   isLoading,
   loadingText,
-  gradient = 'brand',
+  gradient = "brand",
   className,
   disabled,
   ...props
 }: AuthButtonProps) {
   const gradientStyles = {
     brand:
-      'from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 shadow-blue-900/40', // Unified Brand
-    blue: 'from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-blue-900/40',
-    'blue-indigo':
-      'from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-blue-900/40',
+      "from-blue-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 shadow-blue-900/40", // Unified Brand
+    blue: "from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-blue-900/40",
+    "blue-indigo":
+      "from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-blue-900/40",
     emerald:
-      'from-blue-600 to-emerald-600 hover:from-blue-500 hover:to-emerald-500 shadow-blue-900/40',
-    'emerald-reverse':
-      'from-emerald-600 to-blue-600 hover:from-emerald-500 hover:to-blue-500 shadow-emerald-900/40',
-  }
+      "from-blue-600 to-emerald-600 hover:from-blue-500 hover:to-emerald-500 shadow-blue-900/40",
+    "emerald-reverse":
+      "from-emerald-600 to-blue-600 hover:from-emerald-500 hover:to-blue-500 shadow-emerald-900/40",
+  };
 
   const baseGradient =
     gradientStyles[gradient as keyof typeof gradientStyles] ||
-    gradientStyles.brand
+    gradientStyles.brand;
 
   return (
     <button
@@ -53,7 +53,7 @@ export function AuthButton({
     >
       {isLoading ? loadingText : children}
     </button>
-  )
+  );
 }
 
 export function BackButton() {
@@ -79,5 +79,5 @@ export function BackButton() {
         返回首页
       </Link>
     </div>
-  )
+  );
 }

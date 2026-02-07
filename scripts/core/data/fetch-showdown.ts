@@ -1,5 +1,5 @@
-import * as fs from 'fs'
-import * as path from 'path'
+import * as fs from "fs";
+import * as path from "path";
 
 /**
  * Stage 1: 拉取 Showdown 原始数据（事实源）
@@ -15,74 +15,88 @@ import * as path from 'path'
  */
 
 const SHOWDOWN_URL_RULESETS =
-  'https://raw.githubusercontent.com/smogon/pokemon-showdown/master/data/rulesets.ts'
+  "https://raw.githubusercontent.com/smogon/pokemon-showdown/master/data/rulesets.ts";
 const SHOWDOWN_URL_POKEDEX =
-  'https://raw.githubusercontent.com/smogon/pokemon-showdown/master/data/pokedex.ts'
+  "https://raw.githubusercontent.com/smogon/pokemon-showdown/master/data/pokedex.ts";
 const SHOWDOWN_URL_FORMATS =
-  'https://raw.githubusercontent.com/smogon/pokemon-showdown/master/data/formats-data.ts'
+  "https://raw.githubusercontent.com/smogon/pokemon-showdown/master/data/formats-data.ts";
 
 const SNAPSHOT_PATH = path.join(
   process.cwd(),
-  'app/lib/data/showdown-snapshot.json',
-)
+  "app/lib/data/pokemon/showdown-snapshot.json",
+);
+
+// 单独保存原始文件的路径
+const RULESETS_FILE_PATH = path.join(
+  process.cwd(),
+  "app/lib/data/pokemon/rulesets-raw.ts",
+);
+const POKEDEX_FILE_PATH = path.join(
+  process.cwd(),
+  "app/lib/data/pokemon/pokedex-raw.ts",
+);
+const FORMATS_FILE_PATH = path.join(
+  process.cwd(),
+  "app/lib/data/pokemon/formats-data.ts",
+);
 
 interface ShowdownSnapshot {
   rulesets: {
-    content: string
-    fetchedAt: string
-    url: string
-  }
+    content: string;
+    fetchedAt: string;
+    url: string;
+  };
   pokedex: {
-    content: string
-    fetchedAt: string
-    url: string
-  }
+    content: string;
+    fetchedAt: string;
+    url: string;
+  };
   formats: {
-    content: string
-    fetchedAt: string
-    url: string
-  }
-  updatedAt: string
+    content: string;
+    fetchedAt: string;
+    url: string;
+  };
+  updatedAt: string;
 }
 
 async function fetchShowdown() {
   try {
-    console.log('📥 Stage 1: 拉取 Showdown 原始数据...\n')
+    console.log("📥 Stage 1: 拉取 Showdown 原始数据...\n");
 
     // 1. 拉取 rulesets.ts
-    console.log(`[1/3] Fetching rulesets.ts from ${SHOWDOWN_URL_RULESETS}...`)
-    const rulesetsResponse = await fetch(SHOWDOWN_URL_RULESETS)
+    console.log(`[1/3] Fetching rulesets.ts from ${SHOWDOWN_URL_RULESETS}...`);
+    const rulesetsResponse = await fetch(SHOWDOWN_URL_RULESETS);
     if (!rulesetsResponse.ok) {
       throw new Error(
         `Failed to fetch rulesets.ts: ${rulesetsResponse.statusText}`,
-      )
+      );
     }
-    const rulesetsContent = await rulesetsResponse.text()
-    console.log(`  ✓ Fetched rulesets.ts: ${rulesetsContent.length} bytes`)
+    const rulesetsContent = await rulesetsResponse.text();
+    console.log(`  ✓ Fetched rulesets.ts: ${rulesetsContent.length} bytes`);
 
     // 2. 拉取 pokedex.ts
-    console.log(`[2/3] Fetching pokedex.ts from ${SHOWDOWN_URL_POKEDEX}...`)
-    const pokedexResponse = await fetch(SHOWDOWN_URL_POKEDEX)
+    console.log(`[2/3] Fetching pokedex.ts from ${SHOWDOWN_URL_POKEDEX}...`);
+    const pokedexResponse = await fetch(SHOWDOWN_URL_POKEDEX);
     if (!pokedexResponse.ok) {
       throw new Error(
         `Failed to fetch pokedex.ts: ${pokedexResponse.statusText}`,
-      )
+      );
     }
-    const pokedexContent = await pokedexResponse.text()
-    console.log(`  ✓ Fetched pokedex.ts: ${pokedexContent.length} bytes`)
+    const pokedexContent = await pokedexResponse.text();
+    console.log(`  ✓ Fetched pokedex.ts: ${pokedexContent.length} bytes`);
 
     // 3. 拉取 formats-data.ts
     console.log(
       `[3/3] Fetching formats-data.ts from ${SHOWDOWN_URL_FORMATS}...`,
-    )
-    const formatsResponse = await fetch(SHOWDOWN_URL_FORMATS)
+    );
+    const formatsResponse = await fetch(SHOWDOWN_URL_FORMATS);
     if (!formatsResponse.ok) {
       throw new Error(
         `Failed to fetch formats-data.ts: ${formatsResponse.statusText}`,
-      )
+      );
     }
-    const formatsContent = await formatsResponse.text()
-    console.log(`  ✓ Fetched formats-data.ts: ${formatsContent.length} bytes`)
+    const formatsContent = await formatsResponse.text();
+    console.log(`  ✓ Fetched formats-data.ts: ${formatsContent.length} bytes`);
 
     // 4. 保存快照
     const snapshot: ShowdownSnapshot = {
@@ -102,23 +116,37 @@ async function fetchShowdown() {
         url: SHOWDOWN_URL_FORMATS,
       },
       updatedAt: new Date().toISOString(),
-    }
+    };
 
     // 确保目录存在
-    const snapshotDir = path.dirname(SNAPSHOT_PATH)
+    const snapshotDir = path.dirname(SNAPSHOT_PATH);
     if (!fs.existsSync(snapshotDir)) {
-      fs.mkdirSync(snapshotDir, { recursive: true })
+      fs.mkdirSync(snapshotDir, { recursive: true });
     }
 
-    fs.writeFileSync(SNAPSHOT_PATH, JSON.stringify(snapshot, null, 2), 'utf-8')
-    console.log(`\n💾 Saved snapshot to ${SNAPSHOT_PATH}`)
-    console.log(`   Total size: ${JSON.stringify(snapshot).length} bytes`)
-    console.log(`\n✅ Stage 1 complete: Showdown 原始数据已拉取并保存`)
+    // 保存快照
+    fs.writeFileSync(SNAPSHOT_PATH, JSON.stringify(snapshot, null, 2), "utf-8");
+    console.log(`\n💾 Saved snapshot to ${SNAPSHOT_PATH}`);
+    console.log(`   Total size: ${JSON.stringify(snapshot).length} bytes`);
+
+    // 单独保存原始文件（已禁用，因为所有数据都在快照中）
+    // 如果需要调试，可以取消注释
+    /*
+    console.log(`\n💾 Saving individual files...`);
+    fs.writeFileSync(RULESETS_FILE_PATH, rulesetsContent, "utf-8");
+    console.log(`   ✓ Saved rulesets-raw.ts`);
+    fs.writeFileSync(POKEDEX_FILE_PATH, pokedexContent, "utf-8");
+    console.log(`   ✓ Saved pokedex-raw.ts`);
+    fs.writeFileSync(FORMATS_FILE_PATH, formatsContent, "utf-8");
+    console.log(`   ✓ Saved formats-data.ts`);
+    */
+
+    console.log(`\n✅ Stage 1 complete: Showdown 原始数据已拉取并保存`);
   } catch (err) {
-    console.error('❌ Error fetching Showdown data:', err)
-    process.exit(1)
+    console.error("❌ Error fetching Showdown data:", err);
+    process.exit(1);
   }
 }
 
 // 执行
-fetchShowdown()
+fetchShowdown();

@@ -38,9 +38,9 @@ model Contest {
   allowTradingDuringDraft Boolean       @default(false)
   createdAt               DateTime      @default(now())
   adminId                 String
+  version                 Int           @default(0)
   isPaused                Boolean       @default(false)
   pausedTimeRemaining     Int?
-  version                 Int           @default(0)
   admin                   Admin         @relation(fields: [adminId], references: [id])
   draftActions            DraftAction[]
   players                 Player[]
@@ -56,7 +56,6 @@ model Player {
   pickOrder      Int?
   isReady        Boolean        @default(false)
   lastSeenAt     DateTime?
-
   draftActions   DraftAction[]
   ownedPokemon   OwnedPokemon[]
   contest        Contest        @relation(fields: [contestId], references: [id])

@@ -4,16 +4,16 @@
  * Displays the timeline of draft actions
  */
 
-'use client'
+"use client";
 
 interface DraftHistoryProps {
-  history: any[]
-  isOpen: boolean
-  onClose: () => void
+  history: any[];
+  isOpen: boolean;
+  onClose: () => void;
 }
 
 export function DraftHistory({ history, isOpen, onClose }: DraftHistoryProps) {
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
@@ -49,31 +49,31 @@ export function DraftHistory({ history, isOpen, onClose }: DraftHistoryProps) {
                 action.details?.actorUsername ||
                 action.details?.actor ||
                 action.player?.username ||
-                '系统'
+                "系统";
               const actionLabel =
-                action.actionType === 'PICK' && action.details?.auctionWin
-                  ? '竞拍成交获得'
-                  : action.actionType === 'PICK'
-                    ? '选择了'
-                    : action.actionType === 'NOMINATE'
-                      ? '提名了'
-                      : action.actionType === 'BID'
+                action.actionType === "PICK" && action.details?.auctionWin
+                  ? "竞拍成交获得"
+                  : action.actionType === "PICK"
+                    ? "选择了"
+                    : action.actionType === "NOMINATE"
+                      ? "提名了"
+                      : action.actionType === "BID"
                         ? `出价 ${action.details?.bidAmount ?? action.details?.finalPrice ?? 0}G`
-                        : action.actionType === 'NOMINATE_SKIP'
-                          ? '被跳过'
-                          : action.actionType === 'ADMIN_PAUSE'
-                            ? '暂停了选秀'
-                            : action.actionType === 'ADMIN_RESUME'
-                              ? '恢复了选秀'
-                              : action.actionType === 'ADMIN_UNDO'
-                                ? '撤销了'
-                                : action.actionType === 'ADMIN_SKIP'
-                                  ? '跳过了'
-                                  : ''
+                        : action.actionType === "NOMINATE_SKIP"
+                          ? "被跳过"
+                          : action.actionType === "ADMIN_PAUSE"
+                            ? "暂停了选秀"
+                            : action.actionType === "ADMIN_RESUME"
+                              ? "恢复了选秀"
+                              : action.actionType === "ADMIN_UNDO"
+                                ? "撤销了"
+                                : action.actionType === "ADMIN_SKIP"
+                                  ? "跳过了"
+                                  : "";
               const targetName =
                 action.details?.skippedUsername ||
                 action.details?.undoneUsername ||
-                action.details?.pokemonName
+                action.details?.pokemonName;
 
               return (
                 <div
@@ -90,30 +90,30 @@ export function DraftHistory({ history, isOpen, onClose }: DraftHistoryProps) {
                       {targetName}
                     </span>
                   )}
-                  {action.actionType === 'BID' &&
+                  {action.actionType === "BID" &&
                     action.details?.pokemonName && (
                       <span className="text-xs text-gray-400">
                         ({action.details.pokemonName})
                       </span>
                     )}
-                  {action.actionType === 'ADMIN_UNDO' &&
+                  {action.actionType === "ADMIN_UNDO" &&
                     action.details?.pokemonName && (
                       <span className="text-xs text-gray-400">
                         ({action.details.pokemonName})
                       </span>
                     )}
-                  {action.actionType === 'NOMINATE_SKIP' &&
+                  {action.actionType === "NOMINATE_SKIP" &&
                     action.details?.reason && (
                       <span className="text-xs text-gray-400">
                         ({action.details.reason})
                       </span>
                     )}
                 </div>
-              )
+              );
             })
           )}
         </div>
       </div>
     </div>
-  )
+  );
 }

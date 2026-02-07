@@ -1,53 +1,53 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { apiFetch } from '@/app/lib/api/fetch'
-import AuthLayout from '@/app/components/AuthLayout'
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { apiFetch } from "@/app/lib/api/fetch";
+import AuthLayout from "@/app/components/AuthLayout";
 import {
   AuthInput,
   AuthButton,
   BackButton,
-} from '@/app/components/AuthComponents'
+} from "@/app/components/AuthComponents";
 
 export default function AdminLogin() {
   useEffect(() => {
-    document.title = '宝可梦选秀系统-管理员登录'
-  }, [])
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-  const router = useRouter()
+    document.title = "宝可梦选秀系统-管理员登录";
+  }, []);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
+    e.preventDefault();
+    setError("");
+    setLoading(true);
 
     try {
-      const res = await apiFetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await apiFetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
-      })
+      });
 
       if (res.ok) {
-        router.push('/admin/dashboard')
+        router.push("/admin/dashboard");
       } else {
-        const data = await res.json()
+        const data = await res.json();
         setError(
-          data.error === 'Invalid credentials'
-            ? '账号或密码错误'
-            : data.error || '登录失败',
-        )
+          data.error === "Invalid credentials"
+            ? "账号或密码错误"
+            : data.error || "登录失败",
+        );
       }
     } catch (err) {
-      setError('网络连接异常')
+      setError("网络连接异常");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <AuthLayout>
@@ -126,5 +126,5 @@ export default function AdminLogin() {
         </div>
       </div>
     </AuthLayout>
-  )
+  );
 }

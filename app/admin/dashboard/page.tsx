@@ -1,104 +1,104 @@
-'use client'
+"use client";
 
-import Link from 'next/link'
-import { useEffect, useState, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
-import { apiFetch } from '@/app/lib/api/fetch'
-import { Header } from '@/app/components/Header'
-import { HeaderButton } from '@/app/components/HeaderButton'
-import ThemeToggle from '@/app/components/ThemeToggle'
+import Link from "next/link";
+import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { apiFetch } from "@/app/lib/api/fetch";
+import { Header } from "@/app/components/Header";
+import { HeaderButton } from "@/app/components/HeaderButton";
+import ThemeToggle from "@/app/components/ThemeToggle";
 
 declare global {
   interface Window {
-    __BUILD_VERSION__: string
+    __BUILD_VERSION__: string;
   }
 }
 
 export default function AdminDashboard() {
-  const router = useRouter()
+  const router = useRouter();
 
   // Data State
-  const [contests, setContests] = useState<any[]>([])
+  const [contests, setContests] = useState<any[]>([]);
   const [pagination, setPagination] = useState({
     total: 0,
     pages: 1,
     current: 1,
     limit: 12,
-  })
-  const [loading, setLoading] = useState(true)
+  });
+  const [loading, setLoading] = useState(true);
 
   // Search and Filter State
-  const [searchQuery, setSearchQuery] = useState('')
-  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<
-    'ALL' | 'PENDING' | 'ACTIVE' | 'COMPLETED' | 'PAUSED'
-  >('ACTIVE')
+    "ALL" | "PENDING" | "ACTIVE" | "COMPLETED" | "PAUSED"
+  >("ACTIVE");
 
   // Initialize build version from window object
   const [buildVersion] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return window.__BUILD_VERSION__ || 'dev'
+    if (typeof window !== "undefined") {
+      return window.__BUILD_VERSION__ || "dev";
     }
-    return 'dev'
-  })
+    return "dev";
+  });
 
   // Debounce Search
   useEffect(() => {
     const timer = setTimeout(() => {
-      setDebouncedSearch(searchQuery)
+      setDebouncedSearch(searchQuery);
       if (searchQuery !== debouncedSearch) {
-        setPagination((prev) => ({ ...prev, current: 1 })) // Reset to page 1 on new search
+        setPagination((prev) => ({ ...prev, current: 1 })); // Reset to page 1 on new search
       }
-    }, 500)
-    return () => clearTimeout(timer)
-  }, [searchQuery])
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // Fetch Data
   useEffect(() => {
-    document.title = '宝可梦选秀系统-后台管理'
-  }, [])
+    document.title = "宝可梦选秀系统-后台管理";
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
-      setLoading(true)
+      setLoading(true);
 
       const params = new URLSearchParams({
         page: pagination.current.toString(),
         limit: pagination.limit.toString(),
         status: statusFilter,
         search: debouncedSearch,
-      })
+      });
 
       try {
         const res = await apiFetch(
           `/api/admin/contests/list?${params.toString()}`,
-        )
-        const data = await res.json()
+        );
+        const data = await res.json();
         if (data.data && Array.isArray(data.data)) {
-          setContests(data.data)
-          setPagination((prev) => ({ ...prev, ...data.pagination }))
+          setContests(data.data);
+          setPagination((prev) => ({ ...prev, ...data.pagination }));
         } else {
-          setContests([])
+          setContests([]);
         }
       } catch {
-        setContests([])
+        setContests([]);
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
-    fetchData()
-  }, [pagination.current, pagination.limit, statusFilter, debouncedSearch])
+    fetchData();
+  }, [pagination.current, pagination.limit, statusFilter, debouncedSearch]);
 
   // Reset to page 1 when filter changes
   const handleStatusChange = (status: any) => {
-    setStatusFilter(status)
-    setPagination((prev) => ({ ...prev, current: 1 }))
-  }
+    setStatusFilter(status);
+    setPagination((prev) => ({ ...prev, current: 1 }));
+  };
 
   const handlePageChange = (page: number) => {
-    setPagination((prev) => ({ ...prev, current: page }))
-  }
+    setPagination((prev) => ({ ...prev, current: page }));
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20 font-sans transition-colors dark:bg-gray-950">
@@ -121,12 +121,12 @@ export default function AdminDashboard() {
             <HeaderButton
               variant="link"
               onClick={async (e) => {
-                e.preventDefault()
+                e.preventDefault();
                 try {
-                  await apiFetch('/api/auth/logout', { method: 'POST' })
-                  router.push('/admin/login')
+                  await apiFetch("/api/auth/logout", { method: "POST" });
+                  router.push("/admin/login");
                 } catch {
-                  window.location.href = '/api/auth/logout'
+                  window.location.href = "/api/auth/logout";
                 }
               }}
             >
@@ -164,10 +164,10 @@ export default function AdminDashboard() {
         <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-4">
           {[
             {
-              label: '搜索结果',
+              label: "搜索结果",
               value: pagination.total,
-              color: 'text-gray-800',
-              bg: 'bg-white',
+              color: "text-gray-800",
+              bg: "bg-white",
             },
             // Note: Quick stats below might be inaccurate if we only fetch paginated data.
             // For accurate global stats, we'd need a separate stats API endpoint.
@@ -195,25 +195,25 @@ export default function AdminDashboard() {
         <div className="mb-6 flex flex-col items-center justify-between gap-4 md:flex-row">
           {/* Status Tabs */}
           <div className="no-scrollbar flex max-w-full gap-1 overflow-x-auto rounded-xl bg-gray-200/50 p-1">
-            {(['ACTIVE', 'ALL', 'PENDING', 'PAUSED', 'COMPLETED'] as const).map(
+            {(["ACTIVE", "ALL", "PENDING", "PAUSED", "COMPLETED"] as const).map(
               (status) => {
                 const labelMap: Record<string, string> = {
-                  ALL: '全部',
-                  ACTIVE: '进行中',
-                  PENDING: '待启动',
-                  PAUSED: '暂停中',
-                  COMPLETED: '已结束',
-                }
-                const isActive = statusFilter === status
+                  ALL: "全部",
+                  ACTIVE: "进行中",
+                  PENDING: "待启动",
+                  PAUSED: "暂停中",
+                  COMPLETED: "已结束",
+                };
+                const isActive = statusFilter === status;
                 return (
                   <button
                     key={status}
                     onClick={() => handleStatusChange(status)}
-                    className={`rounded-lg px-4 py-1.5 text-sm font-bold whitespace-nowrap transition-all ${isActive ? 'bg-white text-blue-600 shadow-sm dark:bg-gray-800 dark:text-blue-400' : 'text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-gray-200'} `}
+                    className={`rounded-lg px-4 py-1.5 text-sm font-bold whitespace-nowrap transition-all ${isActive ? "bg-white text-blue-600 shadow-sm dark:bg-gray-800 dark:text-blue-400" : "text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-gray-200"} `}
                   >
                     {labelMap[status]}
                   </button>
-                )
+                );
               },
             )}
           </div>
@@ -280,8 +280,8 @@ export default function AdminDashboard() {
             </p>
             <button
               onClick={() => {
-                setSearchQuery('')
-                handleStatusChange('ACTIVE')
+                setSearchQuery("");
+                handleStatusChange("ACTIVE");
               }}
               className="mt-4 font-bold text-blue-600 hover:underline dark:text-blue-400"
             >
@@ -291,20 +291,20 @@ export default function AdminDashboard() {
         ) : (
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             {contests.map((contest: any) => {
-              const isSnake = contest.draftMode === 'SNAKE'
+              const isSnake = contest.draftMode === "SNAKE";
               const theme = isSnake
                 ? {
-                    bg: 'from-gray-100 to-gray-300',
-                    accent: 'text-gray-700',
-                    img: '/images/968Orthworm.webp',
-                    badge: 'bg-gray-800 text-white',
+                    bg: "from-gray-100 to-gray-300",
+                    accent: "text-gray-700",
+                    img: "/images/968Orthworm.webp",
+                    badge: "bg-gray-800 text-white",
                   }
                 : {
-                    bg: 'from-amber-100 to-yellow-200',
-                    accent: 'text-amber-800',
-                    img: '/images/gimmighoul-bg.webp',
-                    badge: 'bg-yellow-600 text-white',
-                  }
+                    bg: "from-amber-100 to-yellow-200",
+                    accent: "text-amber-800",
+                    img: "/images/gimmighoul-bg.webp",
+                    badge: "bg-yellow-600 text-white",
+                  };
 
               return (
                 <Link
@@ -331,22 +331,26 @@ export default function AdminDashboard() {
                         <span
                           className={`rounded-md px-2 py-1 text-[10px] font-black tracking-wide ${theme.badge}`}
                         >
-                          {isSnake ? '蛇形选秀' : '竞价选秀'}
+                          {isSnake ? "蛇形选秀" : "竞价选秀"}
                         </span>
                         <span
                           className={`rounded-md px-2 py-1 text-[10px] font-bold ${
-                            contest.status === 'PENDING'
-                              ? 'bg-orange-100 text-orange-600'
-                              : contest.status === 'ACTIVE'
-                                ? 'bg-green-100 text-green-600'
-                                : 'bg-gray-100 text-gray-500'
+                            contest.status === "PENDING"
+                              ? "bg-orange-100 text-orange-600"
+                              : contest.status === "ACTIVE"
+                                ? "bg-green-100 text-green-600"
+                                : contest.status === "PAUSED"
+                                  ? "bg-yellow-100 text-yellow-600"
+                                  : "bg-gray-100 text-gray-500"
                           }`}
                         >
-                          {contest.status === 'PENDING'
-                            ? '待启动'
-                            : contest.status === 'ACTIVE'
-                              ? '进行中'
-                              : '已结束'}
+                          {contest.status === "PENDING"
+                            ? "待启动"
+                            : contest.status === "ACTIVE"
+                              ? "进行中"
+                              : contest.status === "PAUSED"
+                                ? "暂停中"
+                                : "已结束"}
                         </span>
                       </div>
                       {/* Date */}
@@ -354,7 +358,7 @@ export default function AdminDashboard() {
                         {
                           new Date(contest.createdAt)
                             .toISOString()
-                            .split('T')[0]
+                            .split("T")[0]
                         }
                       </span>
                     </div>
@@ -388,7 +392,7 @@ export default function AdminDashboard() {
                   {/* Action Hint */}
                   <div className="absolute right-6 bottom-4 translate-x-4 opacity-0 transition-all group-hover:translate-x-0 group-hover:opacity-100">
                     <span className="flex items-center gap-1 text-sm font-black text-blue-600 dark:text-blue-400">
-                      管理比赛{' '}
+                      管理比赛{" "}
                       <svg
                         className="h-4 w-4"
                         fill="none"
@@ -405,7 +409,7 @@ export default function AdminDashboard() {
                     </span>
                   </div>
                 </Link>
-              )
+              );
             })}
           </div>
         )}
@@ -441,8 +445,8 @@ export default function AdminDashboard() {
                   onClick={() => handlePageChange(i + 1)}
                   className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-sm font-bold transition ${
                     pagination.current === i + 1
-                      ? 'bg-blue-600 text-white shadow-md'
-                      : 'border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-white/10 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-white/10'
+                      ? "bg-blue-600 text-white shadow-md"
+                      : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-white/10 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-white/10"
                   }`}
                 >
                   {i + 1}
@@ -476,5 +480,5 @@ export default function AdminDashboard() {
         )}
       </main>
     </div>
-  )
+  );
 }

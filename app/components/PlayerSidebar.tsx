@@ -4,39 +4,24 @@
  * Displays player rankings and their Pokemon teams
  */
 
-'use client'
+"use client";
 
-import { getPokemonStaticIcon } from '@/app/lib/utils/helpers'
-import { memo } from 'react'
+import { getPokemonStaticIcon } from "@/app/lib/utils/helpers";
+import { memo } from "react";
 
 interface Player {
-  id: string
-  username: string
-  tokens: number
-  ownedPokemon?: any[]
-  lastSeenAt?: string | Date | null
+  id: string;
+  username: string;
+  tokens: number;
+  ownedPokemon?: any[];
+  lastSeenAt?: string | Date | null;
 }
 
 interface PlayerSidebarProps {
-  players: Player[]
-  currentPlayerId: string | null
-  contest: any
-  maxPokemon: number
-}
-
-function playerSidebarPropsEqual(
-  prev: PlayerSidebarProps,
-  next: PlayerSidebarProps,
-): boolean {
-  if (prev.currentPlayerId !== next.currentPlayerId) return false
-  if (prev.maxPokemon !== next.maxPokemon) return false
-  if (prev.players !== next.players) return false
-  const pc = prev.contest || {}
-  const nc = next.contest || {}
-  if ((pc.draftOrder as any) !== (nc.draftOrder as any)) return false
-  if (pc.currentTurn !== nc.currentTurn) return false
-  if (pc.highestBidderId !== nc.highestBidderId) return false
-  return true
+  players: Player[];
+  currentPlayerId: string | null;
+  contest: any;
+  maxPokemon: number;
 }
 
 const PlayerSidebarInner = function PlayerSidebar({
@@ -47,53 +32,55 @@ const PlayerSidebarInner = function PlayerSidebar({
 }: PlayerSidebarProps) {
   // Sort players by draft order
   const orderedPlayers = (() => {
-    const draftOrder = contest?.draftOrder as string[] | undefined
-    if (!draftOrder?.length) return players
+    const draftOrder = contest?.draftOrder as string[] | undefined;
+    if (!draftOrder?.length) return players;
 
-    const seen = new Set<string>()
-    const order: string[] = []
+    const seen = new Set<string>();
+    const order: string[] = [];
     for (const pid of draftOrder) {
       if (!seen.has(pid)) {
-        seen.add(pid)
-        order.push(pid)
+        seen.add(pid);
+        order.push(pid);
       }
     }
 
-    const byId = new Map(players.map((p) => [p.id, p]))
-    const result = order.map((pid) => byId.get(pid)).filter(Boolean) as Player[]
+    const byId = new Map(players.map((p) => [p.id, p]));
+    const result = order
+      .map((pid) => byId.get(pid))
+      .filter(Boolean) as Player[];
 
     // Add any players not in draft order
     for (const p of players) {
-      if (!seen.has(p.id)) result.push(p)
+      if (!seen.has(p.id)) result.push(p);
     }
 
-    return result
-  })()
+    return result;
+  })();
 
   const getCurrentTurnPlayerId = () => {
-    if (!contest?.draftOrder || contest.currentTurn === undefined) return null
-    const len = contest.draftOrder.length
-    return len ? contest.draftOrder[contest.currentTurn % len] : null
-  }
+    if (!contest?.draftOrder || contest.currentTurn === undefined) return null;
+    const len = contest.draftOrder.length;
+    return len ? contest.draftOrder[contest.currentTurn % len] : null;
+  };
 
-  const currentTurnPlayerId = getCurrentTurnPlayerId()
-  const highestBidderId = contest?.highestBidderId
+  const currentTurnPlayerId = getCurrentTurnPlayerId();
+  const highestBidderId = contest?.highestBidderId;
 
   const isOnline = (lastSeenAt: string | Date | null | undefined) => {
-    if (!lastSeenAt) return false
-    const diff = new Date().getTime() - new Date(lastSeenAt).getTime()
-    return diff < 60000 // < 1 minute
-  }
+    if (!lastSeenAt) return false;
+    const diff = new Date().getTime() - new Date(lastSeenAt).getTime();
+    return diff < 60000; // < 1 minute
+  };
 
   const getLastSeenText = (lastSeenAt: string | Date | null | undefined) => {
-    if (!lastSeenAt) return '离线'
-    const date = new Date(lastSeenAt)
-    const now = new Date()
-    const diff = now.getTime() - date.getTime()
-    if (diff < 60000) return '在线'
-    if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前活跃`
-    return '离线'
-  }
+    if (!lastSeenAt) return "离线";
+    const date = new Date(lastSeenAt);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    if (diff < 60000) return "在线";
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前活跃`;
+    return "离线";
+  };
 
   return (
     <aside className="flex w-full flex-col border-b border-gray-200 bg-white md:w-64 md:overflow-hidden md:border-r md:border-b-0 lg:w-72 dark:border-white/5 dark:bg-gray-900">
@@ -118,24 +105,24 @@ const PlayerSidebarInner = function PlayerSidebar({
 
       <div className="space-y-2 p-3 md:flex-1 md:overflow-y-auto">
         {orderedPlayers.map((player, idx) => {
-          const isMe = player.id === currentPlayerId
-          const isCurrentTurn = player.id === currentTurnPlayerId
-          const isHighestBidder = player.id === highestBidderId
-          const isBoth = isCurrentTurn && isHighestBidder
+          const isMe = player.id === currentPlayerId;
+          const isCurrentTurn = player.id === currentTurnPlayerId;
+          const isHighestBidder = player.id === highestBidderId;
+          const isBoth = isCurrentTurn && isHighestBidder;
 
           return (
             <div
               key={player.id}
               className={`rounded-xl border-2 p-3 transition-all ${
                 isBoth
-                  ? 'border-blue-500 bg-gradient-to-br from-amber-100 via-yellow-50 to-white shadow-lg dark:from-amber-900/50 dark:via-yellow-900/30 dark:to-white/10'
+                  ? "border-blue-500 bg-gradient-to-br from-amber-100 via-yellow-50 to-white shadow-lg dark:from-amber-900/50 dark:via-yellow-900/30 dark:to-white/10"
                   : isCurrentTurn
-                    ? 'border-blue-500 bg-white shadow-md dark:bg-gray-900'
+                    ? "border-blue-500 bg-white shadow-md dark:bg-gray-900"
                     : isHighestBidder
-                      ? 'border-amber-400/60 bg-gradient-to-br from-amber-100 via-yellow-50 to-white shadow-md dark:from-amber-900/50 dark:via-yellow-900/30 dark:to-white/10'
+                      ? "border-amber-400/60 bg-gradient-to-br from-amber-100 via-yellow-50 to-white shadow-md dark:from-amber-900/50 dark:via-yellow-900/30 dark:to-white/10"
                       : isMe
-                        ? 'border-blue-300 bg-blue-50 dark:border-blue-700 dark:bg-blue-900/20'
-                        : 'border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900/50'
+                        ? "border-blue-300 bg-blue-50 dark:border-blue-700 dark:bg-blue-900/20"
+                        : "border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900/50"
               } `}
             >
               {/* Player Header */}
@@ -147,13 +134,13 @@ const PlayerSidebarInner = function PlayerSidebar({
                   <span
                     className={`inline-block h-2 w-2 rounded-full ${
                       isOnline(player.lastSeenAt)
-                        ? 'bg-green-500'
-                        : 'bg-gray-300 dark:bg-gray-600'
+                        ? "bg-green-500"
+                        : "bg-gray-300 dark:bg-gray-600"
                     }`}
                     title={getLastSeenText(player.lastSeenAt)}
                   />
                   <span
-                    className={`truncate text-sm font-black ${isMe ? 'text-blue-600 dark:text-blue-400' : 'text-gray-900 dark:text-white'}`}
+                    className={`truncate text-sm font-black ${isMe ? "text-blue-600 dark:text-blue-400" : "text-gray-900 dark:text-white"}`}
                   >
                     {player.username}
                     {isMe && <span className="ml-1 text-xs">(你)</span>}
@@ -192,12 +179,12 @@ const PlayerSidebarInner = function PlayerSidebar({
                         typeof getPokemonStaticIcon(
                           owned.pokemon.num,
                           owned.pokemon.name,
-                          'sm',
-                        ) === 'object'
+                          "sm",
+                        ) === "object"
                           ? (getPokemonStaticIcon(
                               owned.pokemon.num,
                               owned.pokemon.name,
-                              'sm',
+                              "sm",
                             ) as any)
                           : {}
                       }
@@ -207,11 +194,11 @@ const PlayerSidebarInner = function PlayerSidebar({
                 </div>
               )}
             </div>
-          )
+          );
         })}
       </div>
     </aside>
-  )
-}
+  );
+};
 
-export const PlayerSidebar = memo(PlayerSidebarInner, playerSidebarPropsEqual)
+export const PlayerSidebar = memo(PlayerSidebarInner);

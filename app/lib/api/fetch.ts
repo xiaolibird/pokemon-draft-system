@@ -11,8 +11,21 @@ export async function apiFetch(
   url: string,
   options: RequestInit = {},
 ): Promise<Response> {
-  return fetch(url, {
+  const res = await fetch(url, {
     ...options,
-    credentials: options.credentials ?? 'include',
-  })
+    credentials: options.credentials ?? "include",
+  });
+
+  // 统一处理 401/403 错误（自动登出）
+  if (res.status === 401 || res.status === 403) {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("playerId");
+      localStorage.removeItem("contestId");
+      if (!window.location.pathname.includes("/login")) {
+        window.location.href = `/player/login?reason=session_expired`;
+      }
+    }
+  }
+
+  return res;
 }
