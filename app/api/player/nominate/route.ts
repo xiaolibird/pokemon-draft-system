@@ -11,36 +11,40 @@ import {
   countOwnedInContest,
 } from "@/app/lib/business/auction";
 import { broadcastContestUpdate } from "@/app/api/contests/[id]/stream/route";
+import { apiError } from "@/app/lib/errors";
 
 export async function POST(request: Request) {
   const rateLimitResult = checkRateLimit(request, rateLimitConfigs.draftAction);
   if (!rateLimitResult.allowed) {
-    return NextResponse.json(
-      { error: "操作过于频繁，请稍后再试" },
-      { status: 429 },
-    );
+    return apiError("操作过于频繁，请稍后再试", "RATE_LIMIT_EXCEEDED", {
+      reason: "同一IP在短时间内发送了过多请求",
+      suggestion: "请等待30秒后重试",
+      status: 429,
+    });
   }
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get("player_token")?.value;
 
-    if (!token) return NextResponse.json({ error: "未授权" }, { status: 401 });
+    if (!token) return apiError("未授权", "UNAUTHORIZED", { status: 401 });
 
     const payload = await verifyToken(token);
     if (!payload || payload.role !== "player")
-      return NextResponse.json({ error: "无权操作" }, { status: 403 });
+      return apiError("无权操作", "FORBIDDEN", { status: 403 });
 
     let body: { pokemonPoolId?: string };
     try {
       body = await request.json();
     } catch {
-      return NextResponse.json({ error: "请求体无效" }, { status: 400 });
+      return apiError("请求体无效", "INVALID_REQUEST_BODY", {
+        status: 400,
+      });
     }
     const { pokemonPoolId } = body;
     const playerId = payload.id as string;
 
     if (!pokemonPoolId)
-      return NextResponse.json({ error: "缺少参数" }, { status: 400 });
+      return apiError("缺少参数", "MISSING_PARAMETER", { status: 400 });
 
     // Interactive transaction for strict turn enforcement
     const result = await prisma.$transaction(async (tx) => {
@@ -206,34 +210,66 @@ export async function POST(request: Request) {
     // 版本冲突
     if (msg === "CONTEST_VERSION_CONFLICT") {
       return NextResponse.json(
-        { error: "状态已更新，请刷新后重试", type: "VERSION_CONFLICT" },
+        {
+          error: "状态已更新，请刷新后重试",
+          code: "VERSION_CONFLICT",
+          reason: "比赛状态已被其他用户更新",
+          suggestion: "请刷新页面获取最新状态后重试",
+          timestamp: new Date().toISOString(),
+        },
         { status: 409 },
       );
     }
 
     // 权限相关错误
     if (msg.includes("还没轮到你")) {
-      return NextResponse.json({ error: msg }, { status: 403 });
+      return apiError(msg, "NOT_YOUR_TURN", {
+        reason: "当前不是该玩家的提名回合",
+        status: 403,
+      });
     }
 
     // 业务规则错误（可预知的）
     if (msg.includes("比赛已暂停")) {
-      return NextResponse.json({ error: msg }, { status: 409 });
+      return apiError(msg, "CONTEST_PAUSED", {
+        reason: "比赛当前处于暂停状态",
+        suggestion: "请等待管理员恢复比赛",
+        status: 409,
+      });
     }
-    if (msg.includes("非竞价模式") || msg.includes("不在提名阶段")) {
-      return NextResponse.json({ error: msg }, { status: 400 });
+    if (msg.includes("非竞价模式")) {
+      return apiError(msg, "NOT_AUCTION_MODE", {
+        reason: "当前比赛不是竞价模式",
+        status: 400,
+      });
+    }
+    if (msg.includes("不在提名阶段")) {
+      return apiError(msg, "NOT_IN_NOMINATING_PHASE", {
+        reason: "当前不是提名阶段",
+        status: 400,
+      });
     }
     if (msg.includes("已达到宝可梦上限") || msg.includes("代币不足")) {
-      return NextResponse.json(
-        { error: msg, shouldSkip: true },
-        { status: 400 },
+      return apiError(
+        msg.includes("已达到宝可梦上限") ? "已达到宝可梦上限" : "代币不足",
+        msg.includes("已达到宝可梦上限") ? "TEAM_FULL" : "INSUFFICIENT_TOKENS",
+        {
+          reason: msg.includes("已达到宝可梦上限")
+            ? "玩家已选择的宝可梦数量已达到上限"
+            : "玩家代币不足以继续参与",
+          status: 400,
+        },
       );
     }
     if (msg.includes("不可选")) {
-      return NextResponse.json({ error: msg }, { status: 409 });
+      return apiError(msg, "POKEMON_NOT_AVAILABLE", {
+        reason: "该宝可梦已被选择或不可用",
+        suggestion: "请选择其他可用宝可梦",
+        status: 409,
+      });
     }
 
     // 未预知的错误（真正的服务器错误）
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return apiError(msg, "INTERNAL_SERVER_ERROR", { status: 500 });
   }
 }

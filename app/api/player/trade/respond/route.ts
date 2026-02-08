@@ -4,21 +4,37 @@ import { verifyToken } from "@/app/lib/auth/jwt";
 import { cookies } from "next/headers";
 import { checkFusionExclusive } from "@/app/lib/utils/constants";
 import { broadcastContestUpdate } from "@/app/api/contests/[id]/stream/route";
+import { apiError } from "@/app/lib/errors";
+import {
+  checkRateLimit,
+  rateLimitConfigs,
+} from "@/app/lib/middleware/rate-limit";
 
 export async function POST(request: Request) {
+  const rateLimitResult = checkRateLimit(request, rateLimitConfigs.draftAction);
+  if (!rateLimitResult.allowed) {
+    return apiError("操作过于频繁，请稍后再试", "RATE_LIMIT_EXCEEDED", {
+      reason: "同一IP在短时间内发送了过多请求",
+      suggestion: "请等待30秒后重试",
+      status: 429,
+    });
+  }
+
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get("player_token")?.value;
-    if (!token) return NextResponse.json({ error: "未授权" }, { status: 401 });
+    if (!token) return apiError("未授权", "UNAUTHORIZED", { status: 401 });
 
     const payload = await verifyToken(token);
     if (!payload || payload.role !== "player")
-      return NextResponse.json({ error: "无权操作" }, { status: 403 });
+      return apiError("无权操作", "FORBIDDEN", { status: 403 });
 
     const playerId = payload.id as string;
     const { tradeId, action } = await request.json();
     if (!tradeId || !action)
-      return NextResponse.json({ error: "参数无效" }, { status: 400 });
+      return apiError("参数无效", "INVALID_PARAMETER", {
+        status: 400,
+      });
 
     return await prisma.$transaction(async (tx) => {
       const trade = await tx.trade.findUnique({
@@ -30,14 +46,15 @@ export async function POST(request: Request) {
       });
 
       if (!trade || trade.status !== "PENDING") {
-        return NextResponse.json(
-          { error: "交易不存在或已处理" },
-          { status: 404 },
-        );
+        return apiError("交易不存在或已处理", "TRADE_NOT_FOUND_OR_PROCESSED", {
+          status: 404,
+        });
       }
 
       if (trade.toPlayerId !== playerId) {
-        return NextResponse.json({ error: "无权处理此交易" }, { status: 403 });
+        return apiError("无权处理此交易", "NOT_TRADE_RECEIVER", {
+          status: 403,
+        });
       }
 
       if (action === "REJECT") {
@@ -65,14 +82,16 @@ export async function POST(request: Request) {
         receiver.ownedPokemon.length >= maxPokemon ||
         sender.ownedPokemon.length >= maxPokemon
       ) {
-        return NextResponse.json(
-          { error: "玩家已达宝可梦上限", type: "maxPokemonPerPlayer" },
-          { status: 400 },
-        );
+        return apiError("玩家已达宝可梦上限", "TEAM_FULL", {
+          reason: "交易双方中有玩家已达到宝可梦上限",
+          status: 400,
+        });
       }
 
       if (!trade.offeredPokemonId || !trade.requestedPokemonId) {
-        return NextResponse.json({ error: "交易数据不完整" }, { status: 400 });
+        return apiError("交易数据不完整", "INVALID_TRADE_DATA", {
+          status: 400,
+        });
       }
 
       // 获取具体的宝可梦 ID (Pokemon.id)
@@ -94,10 +113,10 @@ export async function POST(request: Request) {
         (p) => p.pokemonId === requestedOwned.pokemonId,
       );
       if (receiverHasOffered || senderHasRequested) {
-        return NextResponse.json(
-          { error: "玩家已拥有该宝可梦", type: "alreadyOwned" },
-          { status: 400 },
-        );
+        return apiError("玩家已拥有该宝可梦", "POKEMON_ALREADY_OWNED", {
+          reason: "交易会导致玩家拥有重复的宝可梦",
+          status: 400,
+        });
       }
 
       // 3. checkFusionExclusive check
@@ -110,12 +129,14 @@ export async function POST(request: Request) {
         receiverOwnedIdsAfter,
       );
       if (!receiverFusionCheck.allowed) {
-        return NextResponse.json(
+        return apiError(
+          `接收方合体互斥: ${receiverFusionCheck.groupName}`,
+          "FUSION_EXCLUSIVE_VIOLATION",
           {
-            error: `接收方合体互斥: ${receiverFusionCheck.groupName}`,
-            type: "checkFusionExclusive",
+            reason: `已拥有该融合系列的宝可梦：${receiverFusionCheck.groupName}`,
+            suggestion: "请选择其他不在融合限制范围内的宝可梦",
+            status: 400,
           },
-          { status: 400 },
         );
       }
 
@@ -128,12 +149,14 @@ export async function POST(request: Request) {
         senderOwnedIdsAfter,
       );
       if (!senderFusionCheck.allowed) {
-        return NextResponse.json(
+        return apiError(
+          `发送方合体互斥: ${senderFusionCheck.groupName}`,
+          "FUSION_EXCLUSIVE_VIOLATION",
           {
-            error: `发送方合体互斥: ${senderFusionCheck.groupName}`,
-            type: "checkFusionExclusive",
+            reason: `已拥有该融合系列的宝可梦：${senderFusionCheck.groupName}`,
+            suggestion: "请选择其他不在融合限制范围内的宝可梦",
+            status: 400,
           },
-          { status: 400 },
         );
       }
 
@@ -156,6 +179,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true });
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Trade Respond Error:", error);
+    return apiError(error.message || "服务器错误", "INTERNAL_SERVER_ERROR", {
+      status: 500,
+    });
   }
 }

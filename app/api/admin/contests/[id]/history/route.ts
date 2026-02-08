@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/db/prisma";
 import { verifyToken } from "@/app/lib/auth/jwt";
 import { cookies } from "next/headers";
+import { apiError } from "@/app/lib/errors";
 
 export async function GET(request: Request, context: any) {
   const { id } = await context.params;
@@ -12,7 +13,7 @@ export async function GET(request: Request, context: any) {
     const playerToken = cookieStore.get("player_token")?.value;
 
     if (!adminToken && !playerToken) {
-      return NextResponse.json({ error: "未授权" }, { status: 401 });
+      return apiError("未授权", "UNAUTHORIZED", { status: 401 });
     }
 
     const actions = await prisma.draftAction.findMany({
@@ -51,6 +52,6 @@ export async function GET(request: Request, context: any) {
     return NextResponse.json(enrichedActions);
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ error: "服务器错误" }, { status: 500 });
+    return apiError("服务器错误", "INTERNAL_SERVER_ERROR", { status: 500 });
   }
 }

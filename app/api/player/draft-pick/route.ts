@@ -16,6 +16,7 @@ import {
   countOwnedInContest,
   countOwnedInContestBatch,
 } from "@/app/lib/business/auction";
+import { apiError } from "@/app/lib/errors";
 
 /**
  * Helper function to find next valid player who can draft
@@ -87,22 +88,23 @@ async function findNextValidTurnSnake(
 export async function POST(request: Request) {
   const rateLimitResult = checkRateLimit(request, rateLimitConfigs.draftAction);
   if (!rateLimitResult.allowed) {
-    return NextResponse.json(
-      { error: "操作过于频繁，请稍后再试" },
-      { status: 429 },
-    );
+    return apiError("操作过于频繁，请稍后再试", "RATE_LIMIT_EXCEEDED", {
+      reason: "同一IP在短时间内发送了过多请求",
+      suggestion: "请等待30秒后重试",
+      status: 429,
+    });
   }
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get("player_token")?.value;
 
     if (!token) {
-      return NextResponse.json({ error: "未授权" }, { status: 401 });
+      return apiError("未授权", "UNAUTHORIZED", { status: 401 });
     }
 
     const payload = await verifyToken(token);
     if (!payload || payload.role !== "player") {
-      return NextResponse.json({ error: "无权操作" }, { status: 403 });
+      return apiError("无权操作", "FORBIDDEN", { status: 403 });
     }
 
     const body = await request.json();
@@ -111,7 +113,7 @@ export async function POST(request: Request) {
     const playerId = payload.id as string;
 
     if (!pokemonPoolId) {
-      return NextResponse.json({ error: "缺少参数" }, { status: 400 });
+      return apiError("缺少参数", "MISSING_PARAMETER", { status: 400 });
     }
 
     // Use interactive transaction to lock state and prevent race conditions
@@ -305,63 +307,71 @@ export async function POST(request: Request) {
 
     // 版本冲突
     if (msg === "CONTEST_VERSION_CONFLICT") {
-      return NextResponse.json(
-        { error: "状态已更新，请刷新后重试", type: "VERSION_CONFLICT" },
-        { status: 409 },
+      return apiError(
+        "状态已更新，请刷新后重试",
+        "VERSION_CONFLICT",
+        {
+          reason: "比赛状态已被其他用户更新",
+          suggestion: "请刷新页面获取最新状态后重试",
+          status: 409,
+        },
       );
     }
 
     // 权限相关错误
     if (msg.includes("还没轮到你")) {
-      return NextResponse.json({ error: msg }, { status: 403 });
+      return apiError(msg, "NOT_YOUR_TURN", {
+        reason: "当前不是该玩家的选秀回合",
+        status: 403,
+      });
     }
 
     // 业务规则错误（可预知的）
     if (msg.includes("比赛已暂停")) {
-      return NextResponse.json({ error: msg }, { status: 409 });
+      return apiError(msg, "CONTEST_PAUSED", {
+        reason: "比赛当前处于暂停状态",
+        suggestion: "请等待管理员恢复比赛",
+        status: 409,
+      });
     }
     if (msg.includes("比赛未开始或已结束")) {
-      return NextResponse.json({ error: msg }, { status: 400 });
+      return apiError(msg, "CONTEST_NOT_ACTIVE", { status: 400 });
     }
     if (msg.includes("已达到宝可梦上限") || msg.includes("代币不足")) {
-      return NextResponse.json(
-        { error: msg, shouldSkip: true },
-        { status: 400 },
-      );
+      const isFull = msg.includes("已达到宝可梦上限");
+      return apiError(msg, isFull ? "TEAM_FULL" : "INSUFFICIENT_TOKENS", {
+        reason: isFull
+          ? "玩家已选择的宝可梦数量已达到上限"
+          : "玩家代币不足以继续参与",
+        status: 400,
+      });
     }
     if (msg.includes("不可选")) {
-      return NextResponse.json({ error: msg }, { status: 409 });
+      return apiError(msg, "POKEMON_NOT_AVAILABLE", {
+        reason: "该宝可梦已被选择或不可用",
+        suggestion: "请选择其他可用宝可梦",
+        status: 409,
+      });
     }
 
     // DP 验证失败
     if (msg.startsWith("DP_VALIDATION_FAILED:")) {
       const dpResult = (error as any).dpResult;
       const reason = msg.replace("DP_VALIDATION_FAILED:", "");
-      return NextResponse.json(
-        {
-          error: `操作被阻止：${reason}`,
-          type: "DP_VALIDATION_FAILED",
-          reason,
-          suggestion: dpResult?.suggestion,
-          maxAffordablePrice: dpResult?.maxAffordablePrice,
-        },
-        { status: 400 },
+      return apiError(
+        `操作被阻止：${reason}`,
+        "DP_VALIDATION_FAILED",
+        { reason, suggestion: dpResult?.suggestion, status: 400 },
       );
     }
 
     // 合体宝可梦互斥
     if (msg.startsWith("FUSION_EXCLUSIVE:")) {
       const reason = msg.replace("FUSION_EXCLUSIVE:", "");
-      return NextResponse.json(
-        {
-          error: reason,
-          type: "FUSION_EXCLUSIVE",
-        },
-        { status: 400 },
-      );
+      return apiError(reason, "FUSION_EXCLUSIVE", { status: 400 });
     }
 
     // 未预知的错误（真正的服务器错误）
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return apiError("服务器错误", "INTERNAL_SERVER_ERROR", { status: 500 });
   }
 }

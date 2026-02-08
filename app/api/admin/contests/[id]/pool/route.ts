@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/db/prisma";
+import { apiError } from "@/app/lib/errors";
 
 export async function GET(_request: Request, context: any) {
   const { id } = await context.params;
@@ -13,7 +14,7 @@ export async function GET(_request: Request, context: any) {
 
     return NextResponse.json(pool);
   } catch {
-    return NextResponse.json({ error: "服务器错误" }, { status: 500 });
+    return apiError("服务器错误", "INTERNAL_SERVER_ERROR", { status: 500 });
   }
 }
 
@@ -23,7 +24,7 @@ export async function DELETE(request: Request, context: any) {
   const poolId = searchParams.get("poolId");
 
   if (!poolId) {
-    return NextResponse.json({ error: "Missing poolId" }, { status: 400 });
+    return apiError("Missing poolId", "MISSING_PARAMETER", { status: 400 });
   }
 
   try {
@@ -33,11 +34,11 @@ export async function DELETE(request: Request, context: any) {
     const token = cookieStore.get("admin_token")?.value;
 
     if (!token)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiError("Unauthorized", "UNAUTHORIZED", { status: 401 });
 
     const payload = await verifyToken(token);
     if (!payload || payload.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiError("Unauthorized", "UNAUTHORIZED", { status: 401 });
     }
 
     const contest = await prisma.contest.findUnique({
@@ -45,12 +46,13 @@ export async function DELETE(request: Request, context: any) {
       select: { status: true, priceTiers: true },
     });
     if (!contest)
-      return NextResponse.json({ error: "比赛未找到" }, { status: 404 });
+      return apiError("比赛未找到", "CONTEST_NOT_FOUND", { status: 404 });
     if (contest.status !== "PENDING") {
-      return NextResponse.json(
-        { error: "比赛已开始，不可删除宝可梦" },
-        { status: 403 },
-      );
+      return apiError("比赛已开始，不可删除宝可梦", "CONTEST_ALREADY_STARTED", {
+        reason: "比赛状态不为 PENDING",
+        suggestion: "请在比赛开始前管理宝可梦池",
+        status: 403,
+      });
     }
 
     const poolItem = await prisma.pokemonPool.findFirst({
@@ -58,10 +60,9 @@ export async function DELETE(request: Request, context: any) {
       select: { pokemonId: true },
     });
     if (!poolItem)
-      return NextResponse.json(
-        { error: "池中未找到该宝可梦" },
-        { status: 404 },
-      );
+      return apiError("池中未找到该宝可梦", "POOL_ITEM_NOT_FOUND", {
+        status: 404,
+      });
 
     await prisma.pokemonPool.delete({
       where: {
@@ -98,7 +99,7 @@ export async function DELETE(request: Request, context: any) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ error: "Delete failed" }, { status: 500 });
+    return apiError("Delete failed", "DELETE_FAILED", { status: 500 });
   }
 }
 
@@ -112,17 +113,19 @@ export async function POST(request: Request, context: any) {
     const token = cookieStore.get("admin_token")?.value;
 
     if (!token)
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiError("Unauthorized", "UNAUTHORIZED", { status: 401 });
     const payload = await verifyToken(token);
     if (!payload || payload.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiError("Unauthorized", "UNAUTHORIZED", { status: 401 });
     }
 
     const body = await request.json();
     const { pokemonId } = body;
 
     if (!pokemonId) {
-      return NextResponse.json({ error: "Missing pokemonId" }, { status: 400 });
+      return apiError("Missing pokemonId", "MISSING_PARAMETER", {
+        status: 400,
+      });
     }
 
     const contest = await prisma.contest.findUnique({
@@ -130,11 +133,16 @@ export async function POST(request: Request, context: any) {
       select: { status: true },
     });
     if (!contest)
-      return NextResponse.json({ error: "比赛未找到" }, { status: 404 });
+      return apiError("比赛未找到", "CONTEST_NOT_FOUND", { status: 404 });
     if (contest.status !== "PENDING") {
-      return NextResponse.json(
-        { error: "比赛已开始，不可再添加宝可梦" },
-        { status: 403 },
+      return apiError(
+        "比赛已开始，不可再添加宝可梦",
+        "CONTEST_ALREADY_STARTED",
+        {
+          reason: "比赛状态不为 PENDING",
+          suggestion: "请在比赛开始前管理宝可梦池",
+          status: 403,
+        },
       );
     }
 
@@ -147,10 +155,9 @@ export async function POST(request: Request, context: any) {
     });
 
     if (existing) {
-      return NextResponse.json(
-        { error: "Pokemon already in pool" },
-        { status: 400 },
-      );
+      return apiError("Pokemon already in pool", "DUPLICATE_POKEMON", {
+        status: 400,
+      });
     }
 
     const newPoolItem = await prisma.pokemonPool.create({
@@ -167,6 +174,6 @@ export async function POST(request: Request, context: any) {
     return NextResponse.json(newPoolItem);
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ error: "Add failed" }, { status: 500 });
+    return apiError("Add failed", "ADD_FAILED", { status: 500 });
   }
 }

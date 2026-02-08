@@ -7,6 +7,30 @@
 
 ---
 
+## [1.1.2] - 2026-02-09
+
+### 🐛 Bug 修复
+
+- **API 错误响应格式统一**
+  - 修复 `draft-pick/route.ts` 中 11 处错误响应未使用统一格式的问题
+  - 所有错误响应现在包含完整的 `error`, `code`, `reason`, `suggestion`, `timestamp` 字段
+  - 修复 `apiError` 函数调用时的类型错误
+
+### 🔒 安全性增强
+
+- **交易路由速率限制**
+  - 为 `trade/offer/route.ts` 添加速率限制
+  - 为 `trade/respond/route.ts` 添加速率限制
+  - 防止交易 API 被滥用
+
+### ✅ 代码质量
+
+- 通过 TypeScript 类型检查
+- 通过 ESLint 检查
+- 33 个单元测试全部通过
+
+---
+
 ## [1.1.1] - 2026-02-08
 
 ### 🐛 Bug 修复

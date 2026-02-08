@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/db/prisma";
 import { verifyToken } from "@/app/lib/auth/jwt";
 import { cookies } from "next/headers";
+import { apiError } from "@/app/lib/errors";
 
 export async function GET(request: Request, context: any) {
   const { id } = await context.params;
@@ -11,12 +12,12 @@ export async function GET(request: Request, context: any) {
     const token = cookieStore.get("player_token")?.value;
 
     if (!token) {
-      return NextResponse.json({ error: "未授权" }, { status: 401 });
+      return apiError("未授权", "UNAUTHORIZED", { status: 401 });
     }
 
     const payload = await verifyToken(token);
     if (!payload || payload.role !== "player" || payload.id !== id) {
-      return NextResponse.json({ error: "无权访问此数据" }, { status: 403 });
+      return apiError("无权访问此数据", "FORBIDDEN", { status: 403 });
     }
 
     const ownedPokemon = await prisma.ownedPokemon.findMany({
@@ -27,6 +28,6 @@ export async function GET(request: Request, context: any) {
     return NextResponse.json(ownedPokemon);
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ error: "服务器错误" }, { status: 500 });
+    return apiError("服务器错误", "INTERNAL_SERVER_ERROR", { status: 500 });
   }
 }

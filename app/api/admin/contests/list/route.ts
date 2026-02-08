@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/db/prisma";
 import { verifyToken } from "@/app/lib/auth/jwt";
 import { cookies } from "next/headers";
+import { apiError } from "@/app/lib/errors";
 
 export async function GET(request: Request) {
   try {
@@ -15,12 +16,12 @@ export async function GET(request: Request) {
     const token = cookieStore.get("admin_token")?.value;
 
     if (!token) {
-      return NextResponse.json({ error: "未授权" }, { status: 401 });
+      return apiError("未授权", "UNAUTHORIZED", { status: 401 });
     }
 
     const payload = await verifyToken(token);
     if (!payload || payload.role !== "admin") {
-      return NextResponse.json({ error: "未授权" }, { status: 401 });
+      return apiError("未授权", "UNAUTHORIZED", { status: 401 });
     }
 
     // Build where clause
@@ -73,6 +74,6 @@ export async function GET(request: Request) {
     return response;
   } catch (error) {
     console.error("[DEBUG] List contests error:", error);
-    return NextResponse.json({ error: "服务器错误" }, { status: 500 });
+    return apiError("服务器错误", "INTERNAL_SERVER_ERROR", { status: 500 });
   }
 }

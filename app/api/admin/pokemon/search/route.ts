@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/db/prisma";
 import { verifyToken } from "@/app/lib/auth/jwt";
 import { cookies } from "next/headers";
+import { apiError } from "@/app/lib/errors";
 
 export async function GET(request: Request) {
   try {
@@ -9,12 +10,12 @@ export async function GET(request: Request) {
     const token = cookieStore.get("admin_token")?.value;
 
     if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiError("Unauthorized", "UNAUTHORIZED", { status: 401 });
     }
 
     const payload = await verifyToken(token);
     if (!payload || payload.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiError("Unauthorized", "UNAUTHORIZED", { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -44,6 +45,6 @@ export async function GET(request: Request) {
     return NextResponse.json(pokemon);
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ error: "Internal Error" }, { status: 500 });
+    return apiError("Internal Error", "INTERNAL_SERVER_ERROR", { status: 500 });
   }
 }

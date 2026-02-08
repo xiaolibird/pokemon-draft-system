@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/db/prisma";
 import { verifyToken } from "@/app/lib/auth/jwt";
 import { cookies } from "next/headers";
+import { apiError } from "@/app/lib/errors";
 
 export async function POST(request: Request, context: any) {
   const { id } = await context.params;
@@ -10,11 +11,11 @@ export async function POST(request: Request, context: any) {
     const cookieStore = await cookies();
     const token = cookieStore.get("admin_token")?.value;
 
-    if (!token) return NextResponse.json({ error: "未授权" }, { status: 401 });
+    if (!token) return apiError("未授权", "UNAUTHORIZED", { status: 401 });
 
     const payload = await verifyToken(token);
     if (!payload || payload.role !== "admin") {
-      return NextResponse.json({ error: "未授权" }, { status: 401 });
+      return apiError("未授权", "UNAUTHORIZED", { status: 401 });
     }
 
     // 1. Verify Admin Exists
@@ -23,7 +24,7 @@ export async function POST(request: Request, context: any) {
     });
     if (!adminExists) {
       console.error(`[DEBUG] Admin ${payload.id} not found in database.`);
-      return NextResponse.json({ error: "管理员身份失效" }, { status: 401 });
+      return apiError("管理员身份失效", "ADMIN_INVALID", { status: 401 });
     }
 
     const body = await request.json();
@@ -34,7 +35,9 @@ export async function POST(request: Request, context: any) {
     const { tiers, playerTokens, dpTargetMode } = body;
 
     if (!Array.isArray(tiers)) {
-      return NextResponse.json({ error: "无效的分档数据" }, { status: 400 });
+      return apiError("无效的分档数据", "INVALID_TIERS_FORMAT", {
+        status: 400,
+      });
     }
 
     const validDpMode = dpTargetMode === "MINIMUM" ? "MINIMUM" : "BEST";
@@ -120,9 +123,9 @@ export async function POST(request: Request, context: any) {
     console.error("!!! PRICE TIERS UPDATE ERROR !!!");
     console.error("Message:", error.message);
     console.error("Stack:", error.stack);
-    return NextResponse.json(
-      { error: "服务器错误", details: error.message },
-      { status: 500 },
-    );
+    return apiError("服务器错误", "INTERNAL_SERVER_ERROR", {
+      reason: error.message,
+      status: 500,
+    });
   }
 }

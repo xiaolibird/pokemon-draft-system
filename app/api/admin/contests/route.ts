@@ -4,6 +4,7 @@ import { verifyToken } from "@/app/lib/auth/jwt";
 import { cookies } from "next/headers";
 import { parsePSQuery } from "@/app/lib/utils/helpers";
 import crypto from "crypto";
+import { apiError } from "@/app/lib/errors";
 
 export async function POST(request: Request) {
   try {
@@ -11,22 +12,23 @@ export async function POST(request: Request) {
     const token = cookieStore.get("admin_token")?.value;
 
     if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiError("Unauthorized", "UNAUTHORIZED", { status: 401 });
     }
 
     const payload = await verifyToken(token);
     if (!payload || payload.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiError("Unauthorized", "UNAUTHORIZED", { status: 401 });
     }
 
     const adminExists = await prisma.admin.findUnique({
       where: { id: payload.id as string },
     });
     if (!adminExists) {
-      return NextResponse.json(
-        { error: "管理员账户已失效，请重新登录" },
-        { status: 401 },
-      );
+      return apiError("管理员账户已失效，请重新登录", "ADMIN_INVALID", {
+        reason: "管理员账户在数据库中不存在",
+        suggestion: "请重新登录管理员账号",
+        status: 401,
+      });
     }
     const body = await request.json();
     console.log(
@@ -48,10 +50,9 @@ export async function POST(request: Request) {
     } = body;
 
     if (!name || !ruleSet || !draftMode) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 },
-      );
+      return apiError("Missing required fields", "MISSING_REQUIRED_FIELDS", {
+        status: 400,
+      });
     }
 
     // 1. Create the Contest
@@ -299,9 +300,9 @@ export async function POST(request: Request) {
     console.error("Message:", error.message);
     console.error("Stack:", error.stack);
     console.error("Full Error:", error);
-    return NextResponse.json(
-      { error: "Internal server error", details: error.message },
-      { status: 500 },
-    );
+    return apiError("Internal server error", "INTERNAL_SERVER_ERROR", {
+      reason: error.message,
+      status: 500,
+    });
   }
 }

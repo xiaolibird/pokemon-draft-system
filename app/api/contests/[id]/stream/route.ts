@@ -2,6 +2,7 @@ import { verifyToken } from "@/app/lib/auth/jwt";
 import { prisma } from "@/app/lib/db/prisma";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { apiError } from "@/app/lib/errors";
 
 /**
  * Server-Sent Events (SSE) endpoint for real-time contest updates
@@ -323,7 +324,7 @@ export async function GET(request: Request, context: any) {
   const playerToken = cookieStore.get("player_token")?.value;
 
   if (!adminToken && !playerToken) {
-    return NextResponse.json({ error: "未授权" }, { status: 401 });
+    return apiError("未授权", "UNAUTHORIZED", { status: 401 });
   }
 
   // Verify token and check contest access
@@ -366,7 +367,7 @@ export async function GET(request: Request, context: any) {
   }
 
   if (!hasAccess) {
-    return NextResponse.json({ error: "无权访问此比赛" }, { status: 403 });
+    return apiError("无权访问此比赛", "FORBIDDEN", { status: 403 });
   }
 
   // Verify contest exists (redundant check, but kept for safety)
@@ -375,7 +376,7 @@ export async function GET(request: Request, context: any) {
   });
 
   if (!contest) {
-    return NextResponse.json({ error: "比赛未找到" }, { status: 404 });
+    return apiError("比赛未找到", "CONTEST_NOT_FOUND", { status: 404 });
   }
 
   // Create SSE stream（用 ref 供 start/cancel 共用，便于 cancel 时清理连接）

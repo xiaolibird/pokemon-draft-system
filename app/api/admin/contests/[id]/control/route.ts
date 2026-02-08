@@ -9,6 +9,7 @@ import {
 } from "@/app/lib/middleware/rate-limit";
 import { executeAuctionFinalize } from "@/app/lib/business/auction";
 import { broadcastContestUpdate } from "@/app/api/contests/[id]/stream/route";
+import { apiError } from "@/app/lib/errors";
 
 /**
  * Admin control API for pause/resume/undo/skip operations
@@ -23,12 +24,12 @@ export async function POST(request: Request, context: any) {
     const token = cookieStore.get("admin_token")?.value;
 
     if (!token) {
-      return NextResponse.json({ error: "未授权" }, { status: 401 });
+      return apiError("未授权", "UNAUTHORIZED", { status: 401 });
     }
 
     const payload = await verifyToken(token);
     if (!payload || payload.role !== "admin") {
-      return NextResponse.json({ error: "无权操作" }, { status: 403 });
+      return apiError("无权操作", "FORBIDDEN", { status: 403 });
     }
 
     const { action } = await request.json();
@@ -38,14 +39,15 @@ export async function POST(request: Request, context: any) {
       rateLimitConfigs.draftAction,
     );
     if (!rateLimitResult.allowed) {
-      return NextResponse.json(
-        { error: "操作过于频繁，请稍后再试" },
-        { status: 429 },
-      );
+      return apiError("操作过于频繁，请稍后再试", "RATE_LIMIT_EXCEEDED", {
+        reason: "同一IP在短时间内发送了过多请求",
+        suggestion: "请等待30秒后重试",
+        status: 429,
+      });
     }
 
     if (!["pause", "resume", "undo", "skip", "finalize"].includes(action)) {
-      return NextResponse.json({ error: "无效操作" }, { status: 400 });
+      return apiError("无效操作", "INVALID_ACTION", { status: 400 });
     }
 
     // Bug Fix #3: 扩大历史记录查询范围（从 10 条增加到 100 条）
@@ -63,11 +65,11 @@ export async function POST(request: Request, context: any) {
     });
 
     if (!contest) {
-      return NextResponse.json({ error: "比赛未找到" }, { status: 404 });
+      return apiError("比赛未找到", "CONTEST_NOT_FOUND", { status: 404 });
     }
 
     if (contest.status !== "ACTIVE" && contest.status !== "PAUSED") {
-      return NextResponse.json({ error: "比赛未在进行中" }, { status: 400 });
+      return apiError("比赛未在进行中", "CONTEST_NOT_ACTIVE", { status: 400 });
     }
 
     const c = contest as any;
@@ -75,16 +77,17 @@ export async function POST(request: Request, context: any) {
     // Handle FINALIZE (无时限时管理员手动结束；有时限且已过期时管理员可代为结算)
     if (action === "finalize") {
       if (c.draftMode !== "AUCTION" || c.auctionPhase !== "BIDDING") {
-        return NextResponse.json(
-          { error: "当前不在竞价阶段" },
-          { status: 400 },
-        );
+        return apiError("当前不在竞价阶段", "NOT_IN_BIDDING_PHASE", {
+          reason: "当前比赛不是竞价模式或不在 BIDDING 阶段",
+          status: 400,
+        });
       }
       if (c.bidEndTime && new Date() <= new Date(c.bidEndTime)) {
-        return NextResponse.json(
-          { error: "有时限模式请等待倒计时结束" },
-          { status: 400 },
-        );
+        return apiError("有时限模式请等待倒计时结束", "BIDDING_NOT_EXPIRED", {
+          reason: "竞拍时间尚未结束",
+          suggestion: "请等待倒计时结束或等待管理员手动结束",
+          status: 400,
+        });
       }
       try {
         const result = await executeAuctionFinalize(prisma, id);
@@ -114,7 +117,7 @@ export async function POST(request: Request, context: any) {
     // Handle PAUSE
     if (action === "pause") {
       if (c.isPaused) {
-        return NextResponse.json({ error: "比赛已暂停" }, { status: 400 });
+        return apiError("比赛已暂停", "ALREADY_PAUSED", { status: 400 });
       }
 
       // Calculate remaining time if in bidding phase
@@ -131,7 +134,13 @@ export async function POST(request: Request, context: any) {
             `;
       if (pauseUpdated === 0) {
         return NextResponse.json(
-          { error: "状态已变更，请刷新后重试", type: "VERSION_CONFLICT" },
+          {
+            error: "状态已变更，请刷新后重试",
+            code: "VERSION_CONFLICT",
+            reason: "比赛状态已被其他操作更改",
+            suggestion: "请刷新页面获取最新状态后重试",
+            timestamp: new Date().toISOString(),
+          },
           { status: 409 },
         );
       }
@@ -172,7 +181,7 @@ export async function POST(request: Request, context: any) {
     // Handle RESUME
     if (action === "resume") {
       if (!c.isPaused) {
-        return NextResponse.json({ error: "比赛未暂停" }, { status: 400 });
+        return apiError("比赛未暂停", "NOT_PAUSED", { status: 400 });
       }
 
       // Restore bidEndTime if we had remaining time
@@ -191,7 +200,13 @@ export async function POST(request: Request, context: any) {
                 `;
       if (resumeUpdated === 0) {
         return NextResponse.json(
-          { error: "状态已变更，请刷新后重试", type: "VERSION_CONFLICT" },
+          {
+            error: "状态已变更，请刷新后重试",
+            code: "VERSION_CONFLICT",
+            reason: "比赛状态已被其他操作更改",
+            suggestion: "请刷新页面获取最新状态后重试",
+            timestamp: new Date().toISOString(),
+          },
           { status: 409 },
         );
       }
@@ -236,33 +251,39 @@ export async function POST(request: Request, context: any) {
       const isAuctionNominate =
         c.draftMode === "AUCTION" && c.auctionPhase === "NOMINATING";
       if (!isSnake && !isAuctionNominate) {
-        return NextResponse.json(
-          { error: "跳过仅支持蛇形选秀或竞拍提名阶段" },
-          { status: 400 },
+        return apiError(
+          "跳过仅支持蛇形选秀或竞拍提名阶段",
+          "INVALID_SKIP_MODE",
+          {
+            reason: "当前比赛模式不支持跳过操作",
+            suggestion:
+              "跳过操作仅在 SNAKE 模式或 AUCTION 的 NOMINATING 阶段可用",
+            status: 400,
+          },
         );
       }
 
       const draftOrder = c.draftOrder as string[];
       if (!draftOrder || draftOrder.length === 0) {
-        return NextResponse.json({ error: "无效的选秀顺序" }, { status: 400 });
+        return apiError("无效的选秀顺序", "INVALID_DRAFT_ORDER", {
+          status: 400,
+        });
       }
 
       const currentTurn = c.currentTurn;
 
       if (currentTurn >= draftOrder.length) {
-        return NextResponse.json(
-          { error: "选秀已结束，无法跳过" },
-          { status: 400 },
-        );
+        return apiError("选秀已结束，无法跳过", "DRAFT_COMPLETED", {
+          status: 400,
+        });
       }
 
       const currentPlayerId = draftOrder[currentTurn];
 
       if (currentTurn === draftOrder.length - 1) {
-        return NextResponse.json(
-          { error: "已在最后，无法再移至末尾" },
-          { status: 400 },
-        );
+        return apiError("已在最后，无法再移至末尾", "ALREADY_AT_END", {
+          status: 400,
+        });
       }
 
       // 当前槽位移至整条队列末尾，其余依次前移；currentTurn 不变
@@ -278,7 +299,13 @@ export async function POST(request: Request, context: any) {
             `;
       if (skipUpdated === 0) {
         return NextResponse.json(
-          { error: "状态已变更，请刷新后重试", type: "VERSION_CONFLICT" },
+          {
+            error: "状态已变更，请刷新后重试",
+            code: "VERSION_CONFLICT",
+            reason: "比赛状态已被其他操作更改",
+            suggestion: "请刷新页面获取最新状态后重试",
+            timestamp: new Date().toISOString(),
+          },
           { status: 409 },
         );
       }
@@ -329,10 +356,9 @@ export async function POST(request: Request, context: any) {
       );
 
       if (!lastAcquireAction) {
-        return NextResponse.json(
-          { error: "没有可撤销的操作" },
-          { status: 400 },
-        );
+        return apiError("没有可撤销的操作", "NO_ACTION_TO_UNDO", {
+          status: 400,
+        });
       }
 
       // Bug Fix #3: 验证宝可梦是否仍被该玩家拥有（防止交易后无法撤销）
@@ -344,11 +370,14 @@ export async function POST(request: Request, context: any) {
       });
 
       if (!ownedPokemon) {
-        return NextResponse.json(
+        return apiError(
+          "无法撤销：该宝可梦已被交易或状态已变更",
+          "CANNOT_UNDO",
           {
-            error: "无法撤销：该宝可梦已被交易或状态已变更",
+            reason: "被撤销的宝可梦已不在原玩家手中",
+            suggestion: "请检查宝可梦交易记录",
+            status: 400,
           },
-          { status: 400 },
         );
       }
 
@@ -498,13 +527,18 @@ export async function POST(request: Request, context: any) {
     console.error("Admin Control Error:", error);
     if (error.message === "CONTEST_VERSION_CONFLICT") {
       return NextResponse.json(
-        { error: "状态已变更，请刷新后重试", type: "VERSION_CONFLICT" },
+        {
+          error: "状态已变更，请刷新后重试",
+          code: "VERSION_CONFLICT",
+          reason: "比赛状态已被其他操作更改",
+          suggestion: "请刷新页面获取最新状态后重试",
+          timestamp: new Date().toISOString(),
+        },
         { status: 409 },
       );
     }
-    return NextResponse.json(
-      { error: error.message || "服务器错误" },
-      { status: 500 },
-    );
+    return apiError(error.message || "服务器错误", "INTERNAL_SERVER_ERROR", {
+      status: 500,
+    });
   }
 }

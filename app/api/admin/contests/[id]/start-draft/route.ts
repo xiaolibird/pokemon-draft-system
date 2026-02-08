@@ -4,6 +4,7 @@ import { verifyToken } from "@/app/lib/auth/jwt";
 import { cookies } from "next/headers";
 import { auditFromRequest, AuditActions } from "@/app/lib/middleware/audit";
 import { DraftService, DraftError } from "@/app/lib/services/draft-service";
+import { apiError } from "@/app/lib/errors";
 
 // Start snake draft
 export async function POST(request: Request, context: any) {
@@ -14,19 +15,19 @@ export async function POST(request: Request, context: any) {
     const token = cookieStore.get("admin_token")?.value;
 
     if (!token) {
-      return NextResponse.json({ error: "未授权" }, { status: 401 });
+      return apiError("未授权", "UNAUTHORIZED", { status: 401 });
     }
 
     const payload = await verifyToken(token);
     if (!payload || payload.role !== "admin") {
-      return NextResponse.json({ error: "未授权" }, { status: 401 });
+      return apiError("未授权", "UNAUTHORIZED", { status: 401 });
     }
 
     const adminExists = await prisma.admin.findUnique({
       where: { id: payload.id as string },
     });
     if (!adminExists) {
-      return NextResponse.json({ error: "管理员账号已失效" }, { status: 401 });
+      return apiError("管理员账号已失效", "ADMIN_INVALID", { status: 401 });
     }
 
     // Call Service
@@ -54,13 +55,15 @@ export async function POST(request: Request, context: any) {
       return NextResponse.json(
         {
           error: error.message,
-          type: error.type,
-          details: error.details,
+          code: error.code,
+          reason: error.reason,
+          suggestion: error.suggestion,
+          timestamp: new Date().toISOString(),
         },
         { status: error.status },
       );
     }
     console.error(error);
-    return NextResponse.json({ error: "服务器错误" }, { status: 500 });
+    return apiError("服务器错误", "INTERNAL_SERVER_ERROR", { status: 500 });
   }
 }

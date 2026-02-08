@@ -1,6 +1,7 @@
 import { prisma } from "@/app/lib/db/prisma";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { apiError } from "@/app/lib/errors";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,7 @@ export async function GET(_request: Request, context: any) {
     const playerToken = cookieStore.get("player_token")?.value;
 
     if (!adminToken && !playerToken) {
-      return NextResponse.json({ error: "未授权" }, { status: 401 });
+      return apiError("未授权", "UNAUTHORIZED", { status: 401 });
     }
 
     const contest = await prisma.contest.findUnique({
@@ -73,7 +74,7 @@ export async function GET(_request: Request, context: any) {
     });
 
     if (!contest)
-      return NextResponse.json({ error: "比赛未找到" }, { status: 404 });
+      return apiError("比赛未找到", "CONTEST_NOT_FOUND", { status: 404 });
 
     const c = contest as any;
 
@@ -94,6 +95,6 @@ export async function GET(_request: Request, context: any) {
       timestamp: Date.now(),
     });
   } catch {
-    return NextResponse.json({ error: "服务器错误" }, { status: 500 });
+    return apiError("服务器错误", "INTERNAL_SERVER_ERROR", { status: 500 });
   }
 }

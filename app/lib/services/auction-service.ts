@@ -10,15 +10,18 @@ import {
   getAvailableCountForAuction,
 } from "@/app/lib/business/draft";
 import { broadcastContestUpdate } from "@/app/api/contests/[id]/stream/route";
+import { AppError } from "../errors";
+import logger, { logInfo, logError } from "../logger";
 
-export class AuctionError extends Error {
+export class AuctionError extends AppError {
   constructor(
     message: string,
-    public type?: string,
-    public details?: any,
-    public status: number = 400,
+    code: string,
+    reason?: string,
+    suggestion?: string,
+    status: number = 400,
   ) {
-    super(message);
+    super(message, code, reason, suggestion, status);
     this.name = "AuctionError";
   }
 }
@@ -28,8 +31,11 @@ export const AuctionService = {
    * Place a bid on the active Pokemon
    */
   async placeBid(playerId: string, amount: number) {
+    const startTime = Date.now();
+    logInfo("Bid attempt started", { playerId, amount });
+
     if (!amount || isNaN(amount) || amount <= 0) {
-      throw new AuctionError("无效的出价金额");
+      throw new AuctionError("无效的出价金额", "INVALID_BID_AMOUNT");
     }
 
     // Fetch Player & Contest
@@ -43,39 +49,57 @@ export const AuctionService = {
       },
     });
 
-    if (!player) throw new AuctionError("玩家未找到", "NOT_FOUND", null, 404);
+    if (!player)
+      throw new AuctionError(
+        "玩家未找到",
+        "PLAYER_NOT_FOUND",
+        undefined,
+        undefined,
+        404,
+      );
     const contest = player.contest as any;
 
-    if (!contest) throw new AuctionError("比赛未找到", "NOT_FOUND", null, 404);
+    if (!contest)
+      throw new AuctionError(
+        "比赛未找到",
+        "CONTEST_NOT_FOUND",
+        undefined,
+        undefined,
+        404,
+      );
 
     // Basic Validation
     if (contest.isPaused || contest.status === "PAUSED") {
       throw new AuctionError(
         "比赛已暂停，请等待管理员继续",
         "CONTEST_PAUSED",
-        null,
+        "比赛当前处于暂停状态",
+        "请等待管理员恢复比赛后再进行操作",
         409,
       );
     }
     if (contest.auctionPhase !== "BIDDING") {
-      throw new AuctionError("当前不在竞价阶段");
+      throw new AuctionError("当前不在竞价阶段", "NOT_IN_BIDDING_PHASE");
     }
 
     // Time Limit Check
     const hasTimeLimit = contest.auctionBidDuration > 0 && contest.bidEndTime;
     if (hasTimeLimit && new Date() > new Date(contest.bidEndTime)) {
-      throw new AuctionError("出价已截止");
+      throw new AuctionError("出价已截止", "BID_TIME_EXPIRED");
     }
 
     // Bid Logic Check
     if (amount <= (contest.highestBid || 0)) {
-      throw new AuctionError("出价必须高于当前价格");
+      throw new AuctionError("出价必须高于当前价格", "BID_TOO_LOW");
     }
     if (contest.highestBidderId === playerId) {
-      throw new AuctionError("你已是当前最高出价者，不能连续加价");
+      throw new AuctionError(
+        "你已是当前最高出价者，不能连续加价",
+        "ALREADY_HIGHEST_BIDDER",
+      );
     }
     if (player.tokens < amount) {
-      throw new AuctionError("代币不足");
+      throw new AuctionError("代币不足", "INSUFFICIENT_TOKENS");
     }
 
     // Capacity Check
@@ -85,7 +109,12 @@ export const AuctionService = {
       playerId,
     );
     if (ownedInContest >= contest.maxPokemonPerPlayer) {
-      throw new AuctionError("你已选满宝可梦，不能继续出价", "PLAYER_FULL");
+      throw new AuctionError(
+        "你已选满宝可梦，不能继续出价",
+        "PLAYER_TEAM_FULL",
+        "玩家已选择的宝可梦数量已达到上限",
+        `每名玩家最多可以选择 ${contest.maxPokemonPerPlayer} 只宝可梦`,
+      );
     }
 
     // Active Pokemon Check
@@ -95,7 +124,7 @@ export const AuctionService = {
     });
 
     if (!activePoolItem) {
-      throw new AuctionError("竞拍宝可梦不存在");
+      throw new AuctionError("竞拍宝可梦不存在", "POKEMON_NOT_FOUND");
     }
 
     // Fusion Check
@@ -113,7 +142,9 @@ export const AuctionService = {
     if (!fusionCheck.allowed) {
       throw new AuctionError(
         `你已拥有${fusionCheck.groupName}中的宝可梦，不能竞拍同系列的其他形态`,
-        "FUSION_EXCLUSIVE",
+        "FUSION_EXCLUSIVE_VIOLATION",
+        `已拥有该融合系列的宝可梦：${fusionCheck.groupName}`,
+        "请选择其他不在融合限制范围内的宝可梦",
       );
     }
 
@@ -160,11 +191,8 @@ export const AuctionService = {
       throw new AuctionError(
         `出价被阻止：${dpCheck.reason}`,
         "DP_VALIDATION_FAILED",
-        {
-          reason: dpCheck.reason,
-          suggestion: dpCheck.suggestion,
-          maxBidAmount: dpCheck.maxBidAmount,
-        },
+        dpCheck.reason,
+        dpCheck.suggestion,
       );
     }
 
@@ -231,13 +259,29 @@ export const AuctionService = {
 
       // Broadcast update
       void broadcastContestUpdate(contest.id);
+
+      logInfo("Bid successful", {
+        playerId,
+        amount,
+        contestId: contest.id,
+        newPrice: amount,
+        previousPrice: contest.highestBid || 0,
+        duration: Date.now() - startTime,
+      });
+
       return result;
     } catch (error: any) {
+      logError("Bid execution failed", error, {
+        playerId,
+        amount,
+        contestId: contest.id,
+      });
       if (error.message === "RACE_CONDITION") {
         throw new AuctionError(
           "出价失败：价格已被更新或时间已截止",
           "RACE_CONDITION",
-          null,
+          "并发冲突：多个用户同时对同一物品出价",
+          "请刷新页面查看最新价格后重新出价",
           409,
         );
       }

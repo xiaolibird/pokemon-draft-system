@@ -3,6 +3,7 @@ import { prisma } from "@/app/lib/db/prisma";
 import { verifyToken } from "@/app/lib/auth/jwt";
 import { cookies } from "next/headers";
 import { parsePSQuery } from "@/app/lib/utils/helpers";
+import { apiError } from "@/app/lib/errors";
 
 export async function POST(request: Request) {
   try {
@@ -10,7 +11,7 @@ export async function POST(request: Request) {
     const token = cookieStore.get("admin_token")?.value;
 
     if (!token) {
-      return NextResponse.json({ error: "未授权" }, { status: 401 });
+      return apiError("未授权", "UNAUTHORIZED", { status: 401 });
     }
 
     const body = await request.json();
@@ -188,6 +189,6 @@ export async function POST(request: Request) {
     return NextResponse.json(pokemon);
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ error: "Internal Error" }, { status: 500 });
+    return apiError("Internal Error", "INTERNAL_SERVER_ERROR", { status: 500 });
   }
 }

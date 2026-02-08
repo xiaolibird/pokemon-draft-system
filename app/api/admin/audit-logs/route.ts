@@ -9,6 +9,7 @@ import { NextResponse } from "next/server";
 import { verifyToken } from "@/app/lib/auth/jwt";
 import { cookies } from "next/headers";
 import { getAuditLogs } from "@/app/lib/middleware/audit";
+import { apiError } from "@/app/lib/errors";
 
 export async function GET(request: Request) {
   try {
@@ -16,12 +17,12 @@ export async function GET(request: Request) {
     const token = cookieStore.get("admin_token")?.value;
 
     if (!token) {
-      return NextResponse.json({ error: "未授权" }, { status: 401 });
+      return apiError("未授权", "UNAUTHORIZED", { status: 401 });
     }
 
     const payload = await verifyToken(token);
     if (!payload || payload.role !== "admin") {
-      return NextResponse.json({ error: "无权访问" }, { status: 403 });
+      return apiError("无权访问", "FORBIDDEN", { status: 403 });
     }
 
     // 解析查询参数
@@ -52,6 +53,6 @@ export async function GET(request: Request) {
     });
   } catch (error: any) {
     console.error("Audit logs fetch error:", error);
-    return NextResponse.json({ error: "服务器错误" }, { status: 500 });
+    return apiError("服务器错误", "INTERNAL_SERVER_ERROR", { status: 500 });
   }
 }

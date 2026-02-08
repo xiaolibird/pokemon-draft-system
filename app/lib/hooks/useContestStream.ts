@@ -5,6 +5,7 @@
  * Eliminates duplication between DraftRoom and AdminSpectate pages.
  *
  * Update 2026-02-03: Added support for 'partial' (LITE) updates to reduce bandwidth.
+ * Update 2026-02-08: Added structured logging and connection quality monitoring.
  */
 
 import { apiFetch } from "../api/fetch";
@@ -17,6 +18,13 @@ import {
   Player,
   PlayerWithRelations,
 } from "@/app/types/draft";
+import { logDebug, logWarn, logInfo } from "../logger-client";
+
+// SSE 配置常量
+const SSE_PUSH_INTERVAL = 2000; // SSE推送间隔（毫秒）
+const POLLING_INTERVAL = 2000; // Polling间隔
+const CONNECTION_TIMEOUT = 5000; // 连接超时时间
+const MAX_CONSECUTIVE_ERRORS = 2; // 最大连续错误次数
 
 export interface ContestStreamData {
   contest: Contest;
@@ -37,6 +45,8 @@ export type ConnectionStatus =
   | "polling"
   | "disconnected";
 
+export type ConnectionQuality = "good" | "poor" | "disconnected";
+
 export function isSSESupported(): boolean {
   return typeof EventSource !== "undefined";
 }
@@ -47,12 +57,16 @@ export function useContestStream(options: UseContestStreamOptions) {
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
   const [data, setData] = useState<ContestStreamData | null>(null);
   const [error, setError] = useState<Error | null>(null);
+  const [serverOffset, setServerOffset] = useState<number>(0);
+  const [connectionQuality, setConnectionQuality] =
+    useState<ConnectionQuality>("good");
 
   // Refs to avoid stale closures in event handlers
   const lastUpdateRef = useRef<number>(0);
   const onUpdateRef = useRef(onUpdate);
   const onErrorRef = useRef(onError);
   const dataRef = useRef<ContestStreamData | null>(null);
+  const consecutiveErrors = useRef(0); // 连续错误计数，用于判断连接质量
 
   // Update refs when options change
   useEffect(() => {
@@ -87,9 +101,19 @@ export function useContestStream(options: UseContestStreamOptions) {
       const contestData = await res.json();
       const timestamp = contestData.timestamp || Date.now();
 
+      // Calculate server time offset to handle clock skew between client and server
+      // This ensures accurate countdown even when client clock is out of sync
+      const currentServerTime = contestData.timestamp || Date.now();
+      setServerOffset(currentServerTime - Date.now());
+
+      // 重置连续错误计数
+      consecutiveErrors.current = 0;
+      setConnectionQuality("good");
+
       // Race Condition Prevention: Only update if this is newer
       if (timestamp < lastUpdateRef.current) {
-        console.warn("[useContestStream] Ignore stale fetch data", {
+        logDebug("Ignore stale fetch data", {
+          contestId,
           timestamp,
           last: lastUpdateRef.current,
         });
@@ -107,6 +131,19 @@ export function useContestStream(options: UseContestStreamOptions) {
       setError(null);
     } catch (err) {
       const error = err instanceof Error ? err : new Error("Unknown error");
+      consecutiveErrors.current++;
+
+      // 根据连续错误次数设置连接质量
+      if (consecutiveErrors.current >= MAX_CONSECUTIVE_ERRORS) {
+        setConnectionQuality("disconnected");
+        logWarn("SSE disconnected, falling back to polling", {
+          contestId,
+          consecutiveErrors: consecutiveErrors.current,
+        });
+      } else {
+        setConnectionQuality("poor");
+      }
+
       setError(error);
       onErrorRef.current?.(error);
     }
@@ -128,6 +165,11 @@ export function useContestStream(options: UseContestStreamOptions) {
         setStatus("connected");
         setError(null);
 
+        // 重置连续错误计数
+        consecutiveErrors.current = 0;
+        setConnectionQuality("good");
+        logInfo("SSE connected", { contestId });
+
         // Clear polling if SSE is working
         if (pollIntervalRef.current) {
           clearInterval(pollIntervalRef.current);
@@ -142,22 +184,27 @@ export function useContestStream(options: UseContestStreamOptions) {
           const parsed = JSON.parse(event.data);
 
           if (parsed.type === "connected") {
-            console.log("[useContestStream] Connected:", parsed.contestId);
+            logDebug("SSE connection established", { contestId });
             setError(null);
             return;
           }
 
-          const timestamp = parsed.timestamp || Date.now();
+          const serverTime = parsed.timestamp || Date.now();
+
+          // Calculate server time offset from SSE message
+          // This compensates for clock skew between client and server
+          setServerOffset(serverTime - Date.now());
 
           // Race Condition Prevention: Only update if this is newer
-          if (timestamp < lastUpdateRef.current) {
-            console.warn("[useContestStream] Ignore stale SSE data", {
-              timestamp,
+          if (serverTime < lastUpdateRef.current) {
+            logDebug("Ignore stale SSE data", {
+              contestId,
+              timestamp: serverTime,
               last: lastUpdateRef.current,
             });
             return;
           }
-          lastUpdateRef.current = timestamp;
+          lastUpdateRef.current = serverTime;
 
           if (parsed.type === "partial") {
             // Merge partial data (Optimized update mode)
@@ -230,14 +277,31 @@ export function useContestStream(options: UseContestStreamOptions) {
       eventSource.onerror = () => {
         if (!isMountedRef.current) return;
 
-        console.warn("SSE error, falling back to polling");
-        eventSource.close();
-        eventSourceRef.current = null;
-        setStatus("polling");
+        consecutiveErrors.current++;
 
-        // Start polling as fallback
+        logWarn("SSE error occurred", {
+          contestId,
+          consecutiveErrors: consecutiveErrors.current,
+          maxErrors: MAX_CONSECUTIVE_ERRORS,
+        });
+
+        if (consecutiveErrors.current >= MAX_CONSECUTIVE_ERRORS) {
+          setConnectionQuality("disconnected");
+          eventSource.close();
+          eventSourceRef.current = null;
+          setStatus("polling");
+
+          logWarn("SSE disconnected after max errors, switching to polling", {
+            contestId,
+            maxErrors: MAX_CONSECUTIVE_ERRORS,
+          });
+        } else {
+          setConnectionQuality("poor");
+        }
+
+        // Start polling as fallback if not already running
         if (!pollIntervalRef.current) {
-          pollIntervalRef.current = setInterval(fetchData, 2000);
+          pollIntervalRef.current = setInterval(fetchData, POLLING_INTERVAL);
         }
       };
 
@@ -306,5 +370,7 @@ export function useContestStream(options: UseContestStreamOptions) {
     status,
     error,
     refetch: fetchData,
+    serverOffset,
+    connectionQuality,
   };
 }

@@ -70,7 +70,12 @@ export default function DraftRoom() {
   );
 
   // Data Hooks
-  const { data, refetch: refetchContest } = useContestStream({
+  const {
+    data,
+    refetch: refetchContest,
+    serverOffset,
+    connectionQuality,
+  } = useContestStream({
     contestId: contestId || "",
     enabled: !!contestId,
     onUpdate: (newData) => {
@@ -167,6 +172,7 @@ export default function DraftRoom() {
     auctionPhase: contest?.auctionPhase,
     status: contest?.status,
     isPaused: (contest as any)?.isPaused ?? contest?.status === "PAUSED",
+    serverOffset,
     onTimeEnd: () => {
       // 暂停状态下不自动结算
       const currentContest = contestRef.current;
@@ -378,6 +384,48 @@ export default function DraftRoom() {
                         )} */}
           </div>
           <div className="flex items-center gap-2 md:gap-6">
+            {/* 连接状态指示器 */}
+            {connectionQuality && connectionQuality !== "good" && (
+              <div
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-bold ${
+                  connectionQuality === "poor"
+                    ? "bg-yellow-500/20 text-yellow-400"
+                    : "bg-red-500/20 text-red-400"
+                }`}
+                title={
+                  connectionQuality === "poor" ? "网络不稳定" : "已断开连接"
+                }
+              >
+                {connectionQuality === "poor" ? (
+                  <svg
+                    className="w-3 h-3 animate-pulse"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                ) : (
+                  <svg
+                    className="w-3 h-3"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                )}
+                <span>
+                  {connectionQuality === "poor" ? "网络不稳定" : "已断开"}
+                </span>
+              </div>
+            )}
             <div className="text-right">
               <div className="text-[10px] tracking-widest text-gray-500 uppercase">
                 可用筹码

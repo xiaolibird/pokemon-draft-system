@@ -1,6 +1,6 @@
 {
   "name": "pokemon-draft-system",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -9,6 +9,10 @@
     "start": "node server.js",
     "start:next": "next start",
     "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:unit": "vitest run app/lib/business/auction.test.ts app/lib/hooks/useDraftTimer.test.ts",
     "test:skip": "tsx scripts/test/test-skip.ts",
     "test:skip:sh": "bash scripts/test/run-skip.sh",
     "test:sse": "tsx scripts/test/test-sse.ts",
@@ -29,24 +33,32 @@
   },
   "dependencies": {
     "@prisma/client": "^6.0.0",
+    "@scalar/api-reference": "^1.25.0",
     "bcryptjs": "^2.4.3",
     "html-to-image": "^1.11.13",
     "jose": "^5.0.0",
     "next": "16.1.4",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "swr": "^2.4.0"
+    "swr": "^2.4.0",
+    "winston": "^3.17.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.1",
     "@tailwindcss/postcss": "^4",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/react": "^16.2.0",
+    "@testing-library/user-event": "^14.5.2",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.19.30",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/winston": "^2.4.4",
+    "@vitejs/plugin-react": "^5.1.3",
     "eslint": "^9",
     "eslint-config-next": "16.1.4",
     "eventsource": "^4.1.0",
+    "happy-dom": "^15.11.6",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
     "prettier": "^3.8.1",
@@ -54,7 +66,8 @@
     "prisma": "^6.0.0",
     "tailwindcss": "^4",
     "tsx": "^4.7.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^2.1.8"
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx,json,css,md}": "prettier --write"

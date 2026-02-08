@@ -8,6 +8,7 @@ import {
   getRateLimitHeaders,
   rateLimitConfigs,
 } from "@/app/lib/middleware/rate-limit";
+import { apiError } from "@/app/lib/errors";
 
 export async function POST(request: Request) {
   const expectedHeader = request.headers.get("X-Expected-Players");
@@ -27,7 +28,9 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error: "登录尝试过于频繁，请稍后再试",
+        code: "RATE_LIMIT_EXCEEDED",
         retryAfter: Math.ceil((rateLimitResult.resetTime - Date.now()) / 1000),
+        timestamp: new Date().toISOString(),
       },
       {
         status: 429,
@@ -45,7 +48,9 @@ export async function POST(request: Request) {
     const { accessKey, username } = body;
 
     if (!accessKey) {
-      return NextResponse.json({ error: "缺少访问密钥" }, { status: 400 });
+      return apiError("缺少访问密钥", "MISSING_ACCESS_KEY", {
+        status: 400,
+      });
     }
 
     const player = await prisma.player.findUnique({
@@ -54,7 +59,9 @@ export async function POST(request: Request) {
     });
 
     if (!player) {
-      return NextResponse.json({ error: "无效的访问密钥" }, { status: 404 });
+      return apiError("无效的访问密钥", "INVALID_ACCESS_KEY", {
+        status: 404,
+      });
     }
 
     let updatedUsername = player.username;
@@ -98,6 +105,8 @@ export async function POST(request: Request) {
     return response;
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ error: "服务器错误" }, { status: 500 });
+    return apiError("服务器错误", "INTERNAL_SERVER_ERROR", {
+      status: 500,
+    });
   }
 }

@@ -8,20 +8,44 @@ import {
 } from "./draft";
 
 describe("Draft DP Algorithms", () => {
-  describe("canFillTeam", () => {
-    it("should return true if budget is sufficient for cheapest k items", () => {
-      const prices = [5, 1, 4, 2, 3];
-      assert.strictEqual(canFillTeam(6, 3, prices), true);
+  describe("canFillTeam - Edge Cases", () => {
+    it("should handle empty prices array", () => {
+      assert.strictEqual(canFillTeam(100, 3, []), false);
     });
 
-    it("should return false if budget is insufficient", () => {
-      const prices = [5, 1, 4, 2, 3];
-      assert.strictEqual(canFillTeam(5, 3, prices), false);
+    it("should handle negative budget", () => {
+      assert.strictEqual(canFillTeam(-10, 3, [1, 2, 3]), false);
     });
 
-    it("should return false if not enough items", () => {
-      const prices = [1, 2];
-      assert.strictEqual(canFillTeam(10, 3, prices), false);
+    it("should handle k=0", () => {
+      assert.strictEqual(canFillTeam(100, 0, [1, 2, 3]), true);
+    });
+
+    it("should handle k=1 with single item", () => {
+      assert.strictEqual(canFillTeam(5, 1, [5]), true);
+    });
+
+    it("should handle k=1 with insufficient budget", () => {
+      assert.strictEqual(canFillTeam(4, 1, [5]), false);
+    });
+
+    it("should handle exact budget match", () => {
+      assert.strictEqual(canFillTeam(6, 3, [1, 2, 3]), true);
+    });
+
+    it("should handle large numbers", () => {
+      const largePrices = Array.from({ length: 100 }, (_, i) => i + 1);
+      assert.strictEqual(canFillTeam(5050, 100, largePrices), true);
+      assert.strictEqual(canFillTeam(5049, 100, largePrices), false);
+    });
+
+    it("should handle single item k=1", () => {
+      assert.strictEqual(canFillTeam(10, 1, [5, 3, 7]), true);
+    });
+
+    it("should handle zero budget", () => {
+      assert.strictEqual(canFillTeam(0, 0, [1, 2, 3]), true);
+      assert.strictEqual(canFillTeam(0, 1, [1, 2, 3]), false);
     });
   });
 

@@ -5,15 +5,17 @@ import {
   type PriceTier,
   type DPTargetMode,
 } from "@/app/lib/business/draft";
+import { AppError } from "../errors";
 
-export class DraftError extends Error {
+export class DraftError extends AppError {
   constructor(
     message: string,
-    public type?: string,
-    public details?: any,
-    public status: number = 400,
+    code: string,
+    reason?: string,
+    suggestion?: string,
+    status: number = 400,
   ) {
-    super(message);
+    super(message, code, reason, suggestion, status);
     this.name = "DraftError";
   }
 }
@@ -33,11 +35,22 @@ export const DraftService = {
     });
 
     if (!contest) {
-      throw new DraftError("比赛未找到", "NOT_FOUND", null, 404);
+      throw new DraftError(
+        "比赛未找到",
+        "CONTEST_NOT_FOUND",
+        undefined,
+        undefined,
+        404,
+      );
     }
 
     if (contest.players.length < 2) {
-      throw new DraftError("至少需要2名选手", "NOT_ENOUGH_PLAYERS");
+      throw new DraftError(
+        "至少需要2名选手才能开始选秀",
+        "NOT_ENOUGH_PLAYERS",
+        "当前选手数量不足",
+        "请添加更多选手后再试",
+      );
     }
 
     // ========================================
@@ -64,13 +77,20 @@ export const DraftService = {
       throw new DraftError(
         `宝可梦池不足！需要 ${totalPokemonNeeded} 只（${contest.players.length} 名玩家 × ${contest.maxPokemonPerPlayer} 只），但池中仅有 ${availablePokemon.length} 只`,
         "POOL_INSUFFICIENT",
+        `宝可梦池数量不足，需要 ${totalPokemonNeeded} 只，可用 ${availablePokemon.length} 只`,
+        "请添加更多宝可梦到比赛池中",
       );
     }
 
     // 2. Snake Mode Checks
     if (contest.draftMode === "SNAKE") {
       if (!priceTiers || priceTiers.length === 0) {
-        throw new DraftError("请先设置价格分档", "NO_PRICE_TIERS");
+        throw new DraftError(
+          "请先设置价格分档",
+          "NO_PRICE_TIERS",
+          "蛇形选秀模式需要设置价格分档",
+          "请在管理后台设置价格分档后再开始选秀",
+        );
       }
 
       // Check unassigned pokemon
@@ -83,6 +103,8 @@ export const DraftService = {
         throw new DraftError(
           `还有 ${unassignedCount} 只宝可梦未分配价格分档`,
           "UNASSIGNED_POKEMON",
+          `${unassignedCount} 只宝可梦没有分配到任何价格分档`,
+          "请为所有宝可梦分配价格分档后再开始选秀",
         );
       }
 
@@ -112,13 +134,8 @@ export const DraftService = {
         throw new DraftError(
           `价格设置不完备：${feasibilityResult.reason}`,
           "DP_VALIDATION_FAILED",
-          {
-            reason: feasibilityResult.reason,
-            problematicTiers,
-            tierDetails: feasibilityResult.details,
-            suggestions: feasibilityResult.suggestions,
-            dpTargetMode,
-          },
+          feasibilityResult.reason,
+          feasibilityResult.suggestions?.[0]?.reason ?? "请检查价格分档设置",
         );
       }
     }
@@ -132,6 +149,8 @@ export const DraftService = {
         throw new DraftError(
           `代币不足！每位玩家需要 ${contest.maxPokemonPerPlayer} 只宝可梦，起拍价 ${basePrice}，至少需要 ${minTotalCost} 代币，但玩家只有 ${contest.playerTokens} 代币`,
           "AUCTION_TOKENS_INSUFFICIENT",
+          `拍卖模式下代币不足以购买足够的宝可梦`,
+          "请增加每位玩家的初始代币数量",
         );
       }
     }

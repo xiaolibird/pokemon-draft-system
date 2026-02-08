@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/db/prisma";
+import { apiError } from "@/app/lib/errors";
 
 export async function PATCH(
   req: NextRequest,
@@ -10,7 +11,9 @@ export async function PATCH(
     const { id: contestId } = await params;
 
     if (typeof basePrice !== "number" || basePrice < 1) {
-      return NextResponse.json({ error: "底价必须为正整数" }, { status: 400 });
+      return apiError("底价必须为正整数", "INVALID_BASE_PRICE", {
+        status: 400,
+      });
     }
 
     // Verify contest exists and is in PENDING status
@@ -19,21 +22,22 @@ export async function PATCH(
     });
 
     if (!contest) {
-      return NextResponse.json({ error: "比赛不存在" }, { status: 404 });
+      return apiError("比赛不存在", "CONTEST_NOT_FOUND", { status: 404 });
     }
 
     if (contest.status !== "PENDING") {
-      return NextResponse.json(
-        { error: "只能在比赛开始前调整底价" },
-        { status: 400 },
-      );
+      return apiError("只能在比赛开始前调整底价", "CONTEST_ALREADY_STARTED", {
+        reason: "比赛状态不为 PENDING",
+        suggestion: "请在比赛开始前调整底价",
+        status: 400,
+      });
     }
 
     if (contest.draftMode !== "AUCTION") {
-      return NextResponse.json(
-        { error: "只有竞拍模式支持底价设置" },
-        { status: 400 },
-      );
+      return apiError("只有竞拍模式支持底价设置", "NOT_AUCTION_MODE", {
+        reason: "当前比赛不是 AUCTION 模式",
+        status: 400,
+      });
     }
 
     // Update base price
@@ -47,6 +51,6 @@ export async function PATCH(
       auctionBasePrice: updated.auctionBasePrice,
     });
   } catch {
-    return NextResponse.json({ error: "更新失败" }, { status: 500 });
+    return apiError("更新失败", "UPDATE_FAILED", { status: 500 });
   }
 }
