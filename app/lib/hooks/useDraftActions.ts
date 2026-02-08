@@ -46,8 +46,11 @@ export function useDraftActions({
     } catch (err) {
       console.error("Finalize failed", err);
     } finally {
-      finalizingRef.current = false;
-      setFinalizing(false);
+      // Allow retry after 5 seconds if still stuck
+      setTimeout(() => {
+        finalizingRef.current = false;
+        setFinalizing(false);
+      }, 5000);
     }
   }, [contestId, revalidate]);
 

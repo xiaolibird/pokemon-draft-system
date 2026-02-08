@@ -53,6 +53,7 @@ export default function DraftRoom() {
   const [bidAmount, setBidAmount] = useState<number>(0);
   const [hasUnreadBid, setHasUnreadBid] = useState(false);
   const prevAuctionPhase = useRef<string | null>(null);
+  const prevActivePokemonId = useRef<string | null>(null);
 
   // Helper Refs
   const lastKnownHighestBid = useRef<number>(0);
@@ -69,7 +70,7 @@ export default function DraftRoom() {
   );
 
   // Data Hooks
-  const { data } = useContestStream({
+  const { data, refetch: refetchContest } = useContestStream({
     contestId: contestId || "",
     enabled: !!contestId,
     onUpdate: (newData) => {
@@ -132,7 +133,8 @@ export default function DraftRoom() {
   const revalidateAdditionalData = useCallback(() => {
     mutateMyPokemon();
     mutateHistory();
-  }, [mutateMyPokemon, mutateHistory]);
+    refetchContest();
+  }, [mutateMyPokemon, mutateHistory, refetchContest]);
 
   // Custom Hooks for Logic Extraction
   const {
@@ -265,23 +267,44 @@ export default function DraftRoom() {
   // UI Effects
   useEffect(() => {
     if (!contest) return;
-    if (
-      prevAuctionPhase.current === "NOMINATING" &&
-      contest.auctionPhase === "BIDDING"
-    ) {
+
+    // Detect Auction Phase Change or New Pokemon Round
+    const isNewRound =
+      (prevAuctionPhase.current !== "BIDDING" &&
+        contest.auctionPhase === "BIDDING") ||
+      (contest.auctionPhase === "BIDDING" &&
+        contest.activePokemonId !== prevActivePokemonId.current);
+
+    if (isNewRound) {
+      // 1. Toast Notification
       const pName =
         activePokemon?.pokemon.nameCn || activePokemon?.pokemon.name;
-      showToast({
-        type: "info",
-        message: `竞价开始！${pName || "宝可梦"} 正在拍卖中`,
-      });
+      if (
+        prevAuctionPhase.current === "NOMINATING" &&
+        contest.auctionPhase === "BIDDING"
+      ) {
+        showToast({
+          type: "info",
+          message: `竞价开始！${pName || "宝可梦"} 正在拍卖中`,
+        });
+      }
+
+      // 2. Unread Badge
       if (activeMobileTab !== "right") setHasUnreadBid(true);
+
+      // 3. Reset Bid Amount Logic (Fix for Issue #1)
       lastKnownHighestBid.current = contest.highestBid || 0;
+      const currentPrice = contest.highestBid || activePokemon?.basePrice || 0;
+      // Reset input to current price + 1 (min bid) whenever a new round starts
+      setBidAmount(currentPrice + 1);
     }
+
     prevAuctionPhase.current = contest.auctionPhase;
+    prevActivePokemonId.current = contest.activePokemonId;
   }, [
     contest?.auctionPhase,
     contest?.highestBid,
+    contest?.activePokemonId,
     activePokemon,
     activeMobileTab,
     showToast,
@@ -428,6 +451,8 @@ export default function DraftRoom() {
                 onBid={placeBid}
                 isSubmitting={bidSubmitting}
                 playerId={playerId}
+                onForceRefresh={revalidateAdditionalData}
+                onFinalize={finalizeAuction}
               />
             )}
           </div>
@@ -478,6 +503,8 @@ export default function DraftRoom() {
                 onBid={placeBid}
                 isSubmitting={bidSubmitting}
                 playerId={playerId}
+                onForceRefresh={revalidateAdditionalData}
+                onFinalize={finalizeAuction}
               />
             ) : (
               <div className="p-8 text-center font-bold text-gray-500">

@@ -2,6 +2,8 @@ import { prisma } from "@/app/lib/db/prisma";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(_request: Request, context: any) {
   const { id } = await context.params;
   try {

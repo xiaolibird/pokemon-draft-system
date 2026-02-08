@@ -24,6 +24,10 @@ export default function ContestDetail() {
         cacheBust: true,
         pixelRatio: 2,
         backgroundColor: "#f9fafb",
+        style: {
+          minWidth: "1200px", // Force wide layout for export
+          padding: "40px",
+        },
       });
       const link = document.createElement("a");
       link.download = `${contest.name}-选秀结果.png`;
@@ -607,7 +611,7 @@ export default function ContestDetail() {
                         </span>
                       </div>
                       <div className="space-y-1">
-                        <div className="flex justify-between text-xs font-bold text-gray-500">
+                        <div className="flex justify-between text-xs font-bold whitespace-nowrap text-gray-500">
                           <span>花费: {totalSpent} G</span>
                           <span>预算: {budget} G</span>
                         </div>
@@ -645,7 +649,7 @@ export default function ContestDetail() {
                               ></span>
                             </div>
                             <div className="text-center">
-                              <p className="line-clamp-2 h-5 px-1 text-[10px] leading-tight font-bold text-gray-600">
+                              <p className="h-5 w-full overflow-hidden text-ellipsis whitespace-nowrap px-1 text-center text-[10px] leading-tight font-bold text-gray-600">
                                 {owned.pokemon.nameCn || owned.pokemon.name}
                               </p>
                               {contest.draftMode === "AUCTION" &&

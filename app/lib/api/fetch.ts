@@ -14,6 +14,7 @@ export async function apiFetch(
   const res = await fetch(url, {
     ...options,
     credentials: options.credentials ?? "include",
+    cache: options.cache ?? "no-store", // Default to no-store for client API calls
   });
 
   // 统一处理 401/403 错误（自动登出）

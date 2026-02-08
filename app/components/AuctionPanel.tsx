@@ -1,5 +1,5 @@
 import { getPokemonStaticIcon } from "@/app/lib/utils/helpers";
-import { memo } from "react";
+import { memo, useEffect } from "react";
 
 interface AuctionPanelProps {
   contest: any;
@@ -10,6 +10,8 @@ interface AuctionPanelProps {
   onBid: () => void;
   isSubmitting: boolean;
   playerId: string | null;
+  onForceRefresh?: () => void;
+  onFinalize?: () => void;
 }
 
 export const AuctionPanel = memo(function AuctionPanel({
@@ -22,7 +24,39 @@ export const AuctionPanel = memo(function AuctionPanel({
   isSubmitting,
   playerId,
   isSpectator = false,
+  onForceRefresh,
+  onFinalize,
 }: AuctionPanelProps & { isSpectator?: boolean }) {
+  const isStuck = timeLeft !== null && timeLeft <= 0;
+
+  // Auto-refresh logic for stuck state
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+
+    if (
+      contest &&
+      contest.draftMode === "AUCTION" &&
+      contest.auctionPhase === "BIDDING" &&
+      activePokemon &&
+      isStuck &&
+      onForceRefresh
+    ) {
+      // If stuck for more than 5 seconds, try to refresh AND finalize
+      timeoutId = setTimeout(() => {
+        console.log("Auto-refreshing stuck auction state...");
+        onForceRefresh();
+        if (onFinalize) {
+          console.log("Retrying finalize...");
+          onFinalize();
+        }
+      }, 5000);
+    }
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [isStuck, onForceRefresh, onFinalize, contest, activePokemon]);
+
   if (
     !contest ||
     contest.draftMode !== "AUCTION" ||
@@ -97,24 +131,37 @@ export const AuctionPanel = memo(function AuctionPanel({
         {/* Bidding Controls / Spectator View */}
         <div className="w-full rounded-xl border border-white/10 bg-white/10 p-4 backdrop-blur-md md:w-auto">
           {timeLeft !== null && timeLeft <= 0 ? (
-            <div className="min-w-[200px] px-6 py-2 text-center">
-              <div className="mx-auto mb-2 flex h-12 w-12 animate-pulse items-center justify-center rounded-full bg-amber-500 text-white shadow-lg">
-                <svg
-                  className="h-6 w-6 animate-spin"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  />
-                </svg>
+            <div className="flex min-w-[200px] flex-col items-center justify-center gap-2 px-6 py-2 text-center">
+              <div className="flex items-center gap-2">
+                <div className="flex h-12 w-12 animate-pulse items-center justify-center rounded-full bg-amber-500 text-white shadow-lg">
+                  <svg
+                    className="h-6 w-6 animate-spin"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                </div>
               </div>
-              <p className="text-lg font-bold">等待结果...</p>
-              <p className="text-sm opacity-75">正在同步服务器状态</p>
+              <div>
+                <p className="text-lg font-bold">等待结果...</p>
+                <p className="text-sm opacity-75">正在同步服务器状态</p>
+              </div>
+              {/* Fix for Issue #2: Stuck in Syncing */}
+              {onForceRefresh && (
+                <button
+                  onClick={onForceRefresh}
+                  className="mt-2 text-xs font-bold text-white/80 underline decoration-dashed hover:text-white"
+                >
+                  太久没反应？点此刷新
+                </button>
+              )}
             </div>
           ) : isSpectator ? (
             <div className="min-w-[200px] px-6 py-2 text-center">
