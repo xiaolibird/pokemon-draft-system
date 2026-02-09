@@ -10,7 +10,7 @@ import {
   findNextValidTurn,
   countOwnedInContest,
 } from "@/app/lib/business/auction";
-import { broadcastContestUpdate } from "@/app/api/contests/[id]/stream/route";
+import { broadcastContestUpdate } from "@/app/lib/sse/server";
 import { apiError } from "@/app/lib/errors";
 
 export async function POST(request: Request) {

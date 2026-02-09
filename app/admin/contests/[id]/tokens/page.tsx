@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { apiFetch } from "@/app/lib/api/fetch";
-import { Header, HomeButton } from "@/app/components/Header";
+import { Header, BackButton } from "@/app/components/Header";
 import ThemeToggle from "@/app/components/ThemeToggle";
 
 export default function ContestTokens() {
@@ -66,14 +66,7 @@ export default function ContestTokens() {
     document.body.removeChild(link);
   };
 
-  useEffect(() => {
-    document.title = "宝可梦选秀系统-选手密钥";
-  }, []);
-  useEffect(() => {
-    loadData();
-  }, [id]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       // Load contest details for status
       const contestRes = await apiFetch(`/api/admin/contests/${id}`);
@@ -96,7 +89,14 @@ export default function ContestTokens() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    document.title = "宝可梦选秀系统-选手密钥";
+  }, []);
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const generateTokens = async () => {
     if (generated && !confirm("重新生成将使所有旧密钥失效，确定要继续吗？"))
@@ -190,7 +190,7 @@ export default function ContestTokens() {
               )}
             </div>
           }
-          leftSlot={<HomeButton href="/admin/dashboard" />}
+          leftSlot={<BackButton href={`/admin/contests/${id}`} />}
           rightSlot={<ThemeToggle />}
           className="mb-8 border-b-0 bg-transparent p-0 shadow-none"
         />

@@ -9,9 +9,9 @@ import { useDraftTimer } from "@/app/lib/hooks/useDraftTimer";
 import { useDraftActions } from "@/app/lib/hooks/useDraftActions";
 import { getPokemonStaticIcon } from "@/app/lib/utils/helpers";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import useSWR from "swr";
-import { DraftHistoryItem } from "@/app/types/draft";
+import { PoolItem, DraftHistoryItem } from "@/app/types/draft";
 
 // Components
 import { AuctionPanel } from "@/app/components/AuctionPanel";
@@ -45,7 +45,7 @@ export default function DraftRoom() {
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
-    item: any;
+    item: PoolItem;
     action: string;
   } | null>(null);
 
@@ -62,9 +62,12 @@ export default function DraftRoom() {
   const toastIdRef = useRef(0);
 
   const showToast = useCallback(
-    (opts: any) => {
+    (opts: {
+      type: "success" | "error" | "info" | "warning";
+      message: string;
+    }) => {
       const id = ++toastIdRef.current;
-      setToast({ id, type: "error", ...opts }); // opts 中的 type 会覆盖默认的 "error"
+      setToast({ id, ...opts }); // opts 中的 type 会覆盖默认的 "error"
     },
     [setToast],
   );
@@ -104,7 +107,10 @@ export default function DraftRoom() {
 
   const contest = data?.contest;
   const players = data?.players || [];
-  const pokemonPool = data?.pokemonPool || [];
+  const pokemonPool = useMemo(
+    () => data?.pokemonPool || [],
+    [data?.pokemonPool],
+  );
 
   // SWR for complex relational data
   const myPokemonKey =
@@ -171,15 +177,12 @@ export default function DraftRoom() {
     bidEndTime: contest?.bidEndTime,
     auctionPhase: contest?.auctionPhase,
     status: contest?.status,
-    isPaused: (contest as any)?.isPaused ?? contest?.status === "PAUSED",
+    isPaused: contest?.isPaused ?? contest?.status === "PAUSED",
     serverOffset,
     onTimeEnd: () => {
       // 暂停状态下不自动结算
       const currentContest = contestRef.current;
-      if (
-        (currentContest as any)?.isPaused ||
-        currentContest?.status === "PAUSED"
-      ) {
+      if (currentContest?.isPaused || currentContest?.status === "PAUSED") {
         return;
       }
       finalizeAuctionRef.current();
@@ -259,7 +262,7 @@ export default function DraftRoom() {
 
   const draftLen = contest?.draftOrder?.length || 0;
   const currentPlayerId = draftLen
-    ? (contest as any).draftOrder[contest!.currentTurn % draftLen]
+    ? contest!.draftOrder[contest!.currentTurn % draftLen]
     : undefined;
   const isMyTurn =
     contest?.draftMode === "SNAKE"
@@ -301,20 +304,16 @@ export default function DraftRoom() {
       // 3. Reset Bid Amount Logic (Fix for Issue #1)
       lastKnownHighestBid.current = contest.highestBid || 0;
       const currentPrice = contest.highestBid || activePokemon?.basePrice || 0;
+      const nextBid = currentPrice + 1;
       // Reset input to current price + 1 (min bid) whenever a new round starts
-      setBidAmount(currentPrice + 1);
+      if (bidAmount !== nextBid) {
+        setBidAmount(nextBid);
+      }
     }
 
     prevAuctionPhase.current = contest.auctionPhase;
     prevActivePokemonId.current = contest.activePokemonId;
-  }, [
-    contest?.auctionPhase,
-    contest?.highestBid,
-    contest?.activePokemonId,
-    activePokemon,
-    activeMobileTab,
-    showToast,
-  ]);
+  }, [contest, activePokemon, activeMobileTab, showToast, bidAmount]);
 
   if (loading && !contest)
     return (
@@ -344,7 +343,7 @@ export default function DraftRoom() {
       const cost = confirmDialog.item?.basePrice ?? 0;
       const ownedCount =
         me._count?.ownedPokemon ?? me.ownedPokemon?.length ?? 0;
-      const tokens = (me as any).tokens ?? contest?.playerTokens ?? 0;
+      const tokens = me.tokens ?? contest?.playerTokens ?? 0;
       const availablePrices = pokemonPool
         .filter(
           (p) => p.status === "AVAILABLE" && p.id !== confirmDialog!.item?.id,
@@ -640,7 +639,7 @@ export default function DraftRoom() {
                       confirmDialog.item.pokemon.num,
                       confirmDialog.item.pokemon.name,
                       "lg",
-                    ) as any
+                    ) as React.CSSProperties
                   }
                 ></span>
               </div>

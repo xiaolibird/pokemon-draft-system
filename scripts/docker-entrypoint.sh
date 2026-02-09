@@ -26,9 +26,11 @@ if [ -n "$DATABASE_URL" ]; then
         npx prisma@6 db push --accept-data-loss
     fi
 
-    # Always ensure client is generated for the current platform
-    echo ">>> Ensuring Prisma Client is generated..."
-    npx prisma@6 generate
+    # Always ensure client is generated for the current platform (Skip in production standalone to avoid crashes)
+    if [ "$NODE_ENV" != "production" ] || [ "$AUTO_DB_PUSH" = "true" ]; then
+        echo ">>> Ensuring Prisma Client is generated..."
+        npx prisma@6 generate
+    fi
 fi
 
 # 3. Command Execution Logic

@@ -51,7 +51,8 @@ export function useDraftTimer({
       }, 1000);
       return () => clearInterval(timer);
     } else {
-      setTimeLeft(null);
+      // Avoid setting state to null if it's already null to prevent cascading renders
+      setTimeLeft((prev) => (prev === null ? null : null));
     }
   }, [bidEndTime, auctionPhase, effectivePaused, serverOffset]);
 

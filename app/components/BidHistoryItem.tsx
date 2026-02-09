@@ -1,10 +1,11 @@
 "use client";
 
+import { DraftHistoryItem } from "@/app/types/draft";
 import { getPokemonStaticIcon } from "@/app/lib/utils/helpers";
 import { getBidActionTheme } from "@/app/lib/utils/theme-helpers";
 
 interface BidHistoryItemProps {
-  action: any;
+  action: DraftHistoryItem;
   isHighestBid?: boolean;
   maxBid?: number;
   minBid?: number;

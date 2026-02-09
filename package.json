@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "typecheck": "tsc --noEmit",
     "start": "node server.js",
     "start:next": "next start",
@@ -33,7 +33,6 @@
   },
   "dependencies": {
     "@prisma/client": "^6.0.0",
-    "@scalar/api-reference": "^1.25.0",
     "bcryptjs": "^2.4.3",
     "html-to-image": "^1.11.13",
     "jose": "^5.0.0",

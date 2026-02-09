@@ -3,7 +3,12 @@
  * 用于移除响应中的敏感信息
  */
 
-import type { Player, Contest, PlayerWithRelations } from "@/app/types/draft";
+import type {
+  Player,
+  Contest,
+  PlayerWithRelations,
+  PokemonPool,
+} from "@/app/types/draft";
 
 /**
  * 选手信息脱敏（返回给前端）
@@ -32,14 +37,16 @@ export function sanitizePlayerWithRelations(
     tokens: player.tokens,
     _count: player._count ?? { ownedPokemon: 0 },
     // 移除敏感字段
-    accessKey: undefined as any,
+    accessKey: undefined,
   };
 }
 
 /**
  * 选手拥有的宝可梦脱敏
  */
-export function sanitizeOwnedPokemon(ownedPokemon: any[]): any[] {
+export function sanitizeOwnedPokemon(
+  ownedPokemon: any[],
+): Partial<PokemonPool>[] {
   return ownedPokemon.map((op) => ({
     id: op.id,
     pokemonId: op.pokemonId,
@@ -94,10 +101,10 @@ export function sanitizeContestPublic(
 /**
  * API 响应脱敏包装器
  */
-export function sanitizeResponse<T extends Record<string, any>>(
+export function sanitizeResponse<T extends Record<string, unknown>, R>(
   data: T,
-  sanitizeFn: (data: T) => any,
-): any {
+  sanitizeFn: (data: T) => R,
+): R {
   return sanitizeFn(data);
 }
 

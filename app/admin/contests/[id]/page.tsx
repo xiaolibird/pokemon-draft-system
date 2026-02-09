@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { getPokemonStaticIcon } from "@/app/lib/utils/helpers";
 import { TYPE_COLORS } from "@/app/lib/utils/constants";
@@ -9,10 +9,15 @@ import { apiFetch } from "@/app/lib/api/fetch";
 import { toPng } from "html-to-image";
 import { Header, HomeButton } from "@/app/components/Header";
 import { HeaderButton } from "@/app/components/HeaderButton";
+import type {
+  AdminContest,
+  PokemonSearchResult,
+  PriceTier,
+} from "@/app/types/draft";
 
 export default function ContestDetail() {
   const { id } = useParams();
-  const [contest, setContest] = useState<any>(null);
+  const [contest, setContest] = useState<AdminContest | null>(null);
   const [loading, setLoading] = useState(true);
   const resultsRef = useRef<HTMLDivElement>(null);
 
@@ -30,7 +35,7 @@ export default function ContestDetail() {
         },
       });
       const link = document.createElement("a");
-      link.download = `${contest.name}-选秀结果.png`;
+      link.download = `${contest?.name || "contest"}-选秀结果.png`;
       link.href = dataUrl;
       link.click();
     } catch (err) {
@@ -42,12 +47,12 @@ export default function ContestDetail() {
   // Add Pokemon Modal State
   const [showAddModal, setShowAddModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<PokemonSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
   // 删除宝可梦确认弹窗：仅比赛开始前可删；若已加入分级则提示
   const [deleteConfirmModal, setDeleteConfirmModal] = useState<{
-    item: any;
+    item: AdminContest["pokemonPool"][number];
     tierNames: string[];
   } | null>(null);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
@@ -67,7 +72,9 @@ export default function ContestDetail() {
         body: JSON.stringify({ basePrice: newPrice }),
       });
       if (res.ok) {
-        setContest((prev: any) => ({ ...prev, auctionBasePrice: newPrice }));
+        setContest((prev) =>
+          prev ? { ...prev, auctionBasePrice: newPrice } : null,
+        );
       }
     } catch (err) {
       console.error(err);
@@ -89,10 +96,10 @@ export default function ContestDetail() {
       if (res.ok) {
         const data = await res.json();
         const poolIds = new Set(
-          contest.pokemonPool.map((p: any) => p.pokemon.id),
+          contest?.pokemonPool.map((p) => p.pokemon.id) || [],
         );
         setSearchResults(
-          data.map((p: any) => ({
+          data.map((p: PokemonSearchResult) => ({
             ...p,
             isInPool: poolIds.has(p.id),
           })),
@@ -105,7 +112,7 @@ export default function ContestDetail() {
     }
   };
 
-  const handleAddPokemon = async (pokemon: any) => {
+  const handleAddPokemon = async (pokemon: PokemonSearchResult) => {
     if (pokemon.isInPool) return;
 
     try {
@@ -117,10 +124,14 @@ export default function ContestDetail() {
 
       if (res.ok) {
         const newPoolItem = await res.json();
-        setContest((prev: any) => ({
-          ...prev,
-          pokemonPool: [...prev.pokemonPool, newPoolItem],
-        }));
+        setContest((prev) =>
+          prev
+            ? {
+                ...prev,
+                pokemonPool: [...prev.pokemonPool, newPoolItem],
+              }
+            : null,
+        );
         setSearchResults((prev) =>
           prev.map((p) => (p.id === pokemon.id ? { ...p, isInPool: true } : p)),
         );
@@ -136,7 +147,7 @@ export default function ContestDetail() {
   const loadContest = useCallback(() => {
     apiFetch(`/api/admin/contests/${id}`)
       .then((res) => res.json())
-      .then((data) => {
+      .then((data: AdminContest) => {
         setContest(data);
         setLoading(false);
       })
@@ -217,66 +228,77 @@ export default function ContestDetail() {
     setTypePriority(types);
   }, []);
 
-  const sortedPool = contest?.pokemonPool
-    ? [...contest.pokemonPool].sort((a: any, b: any) => {
-        const typeA = a.pokemon.types[0];
-        const typeB = b.pokemon.types[0];
-        const priorityA = typePriority.indexOf(typeA);
-        const priorityB = typePriority.indexOf(typeB);
+  const sortedPool = useMemo(() => {
+    if (!contest?.pokemonPool) return [];
+    return [...contest.pokemonPool].sort((a: any, b: any) => {
+      const typeA = a.pokemon.types[0];
+      const typeB = b.pokemon.types[0];
+      const priorityA = typePriority.indexOf(typeA);
+      const priorityB = typePriority.indexOf(typeB);
 
-        // 1. Sort by Type Priority
-        if (priorityA !== priorityB) return priorityA - priorityB;
+      // 1. Sort by Type Priority
+      if (priorityA !== priorityB) return priorityA - priorityB;
 
-        // 2. Sort by BST (Descending)
-        return b.pokemon.bst - a.pokemon.bst;
-      })
-    : [];
+      // 2. Sort by BST (Descending)
+      return b.pokemon.bst - a.pokemon.bst;
+    });
+  }, [contest?.pokemonPool, typePriority]);
 
-  const allTiers = Array.isArray(contest?.priceTiers)
-    ? contest.priceTiers
-    : (contest?.priceTiers as any)?.tiers;
-  const pricedIds = new Set(allTiers?.flatMap((t: any) => t.pokemonIds) || []);
+  const allTiers = useMemo(() => {
+    if (Array.isArray(contest?.priceTiers)) {
+      return contest.priceTiers as any[];
+    }
+    return ((contest?.priceTiers as any)?.tiers || []) as any[];
+  }, [contest?.priceTiers]);
+
+  const pricedIds = useMemo(() => {
+    return new Set(allTiers?.flatMap((t: any) => t.pokemonIds || []) || []);
+  }, [allTiers]);
 
   // For SNAKE mode: split into priced/unpriced pools
   // For AUCTION mode: use unified pool
-  const pricedPool =
-    contest?.draftMode === "SNAKE"
-      ? sortedPool.filter((p: any) => pricedIds.has(p.pokemon.id))
-      : [];
-  const unpricedPool =
-    contest?.draftMode === "SNAKE"
-      ? sortedPool.filter((p: any) => !pricedIds.has(p.pokemon.id))
-      : [];
-  const unifiedPool = contest?.draftMode === "AUCTION" ? sortedPool : [];
+  const pricedPool = useMemo(() => {
+    if (contest?.draftMode !== "SNAKE") return [];
+    return sortedPool.filter((p) => pricedIds.has(p.pokemon.id));
+  }, [contest?.draftMode, sortedPool, pricedIds]);
+
+  const unpricedPool = useMemo(() => {
+    if (contest?.draftMode !== "SNAKE") return [];
+    return sortedPool.filter((p) => !pricedIds.has(p.pokemon.id));
+  }, [contest?.draftMode, sortedPool, pricedIds]);
+
+  const unifiedPool = useMemo(() => {
+    if (contest?.draftMode !== "AUCTION") return [];
+    return sortedPool;
+  }, [contest?.draftMode, sortedPool]);
 
   // Group priced pool by price tiers for SNAKE mode
-  const tieredGroups =
-    contest?.draftMode === "SNAKE" && allTiers
-      ? (() => {
-          const tierMap = new Map<number, { name: string; color: string }>();
-          allTiers.forEach((t: any) => {
-            tierMap.set(t.price, { name: t.name, color: t.color });
-          });
+  const tieredGroups = useMemo(() => {
+    if (contest?.draftMode !== "SNAKE" || !allTiers) return [];
 
-          const groups: Record<number, typeof pricedPool> = {};
-          pricedPool.forEach((p: any) => {
-            const price = p.basePrice || 0;
-            if (!groups[price]) groups[price] = [];
-            groups[price].push(p);
-          });
+    const tierMap = new Map<number, { name: string; color: string }>();
+    allTiers.forEach((t: any) => {
+      tierMap.set(t.price, { name: t.name, color: t.color });
+    });
 
-          return Object.entries(groups)
-            .sort((a, b) => Number(b[0]) - Number(a[0])) // Descending price
-            .map(([priceStr, items]) => {
-              const price = Number(priceStr);
-              const meta = tierMap.get(price) || {
-                name: `${price} G`,
-                color: "#3b82f6", // Default blue
-              };
-              return { price, items, ...meta };
-            });
-        })()
-      : [];
+    const groups: Record<number, typeof pricedPool> = {};
+    pricedPool.forEach((p) => {
+      const price = p.basePrice || 0;
+      if (!groups[price]) groups[price] = [];
+      groups[price].push(p);
+    });
+
+    return Object.entries(groups)
+      .sort((a, b) => Number(b[0]) - Number(a[0])) // Descending price
+      .map(([priceStr, items]) => {
+        const price = Number(priceStr);
+        const meta = tierMap.get(price) || {
+          name: `${price} G`,
+          color: "#3b82f6", // Default blue
+        };
+        return { price, items, ...meta };
+      });
+  }, [contest?.draftMode, allTiers, pricedPool]);
 
   // Initialize active tier
   useEffect(() => {
@@ -586,9 +608,9 @@ export default function ContestDetail() {
               ref={resultsRef}
               className="-m-4 space-y-4 rounded-3xl bg-white p-4 dark:bg-gray-900"
             >
-              {contest.players?.map((player: any) => {
+              {contest.players?.map((player) => {
                 const totalSpent = player.ownedPokemon.reduce(
-                  (sum: number, p: any) => sum + (p.purchasePrice || 0),
+                  (sum, p) => sum + (p.purchasePrice || 0),
                   0,
                 );
                 const budget = contest.playerTokens;
@@ -627,7 +649,7 @@ export default function ContestDetail() {
                     {/* Horizontal Pokemon List */}
                     <div className="custom-scrollbar w-full flex-1 overflow-x-auto pb-2">
                       <div className="flex gap-4">
-                        {player.ownedPokemon.map((owned: any) => (
+                        {player.ownedPokemon.map((owned) => (
                           <div
                             key={owned.id}
                             className="flex min-w-[60px] flex-col items-center gap-1"
@@ -636,15 +658,10 @@ export default function ContestDetail() {
                               <span
                                 className="picon"
                                 style={
-                                  typeof getPokemonStaticIcon(
+                                  getPokemonStaticIcon(
                                     owned.pokemon.num,
                                     owned.pokemon.name,
-                                  ) === "object"
-                                    ? (getPokemonStaticIcon(
-                                        owned.pokemon.num,
-                                        owned.pokemon.name,
-                                      ) as any)
-                                    : {}
+                                  ) as React.CSSProperties
                                 }
                               ></span>
                             </div>
@@ -690,10 +707,10 @@ export default function ContestDetail() {
               </div>
             </div>
             <div className="flex flex-wrap content-start gap-1 rounded-2xl border border-red-100 bg-red-50/50 p-4 dark:border-red-900/20 dark:bg-red-900/10">
-              {unpricedPool.map((item: any) => {
+              {unpricedPool.map((item) => {
                 const tiers = Array.isArray(contest.priceTiers)
-                  ? contest.priceTiers
-                  : (contest.priceTiers as any)?.tiers;
+                  ? (contest.priceTiers as any[])
+                  : (((contest.priceTiers as any)?.tiers || []) as any[]);
                 const inTierNames = tiers
                   ? tiers
                       .filter((t: any) =>
@@ -738,15 +755,10 @@ export default function ContestDetail() {
                     <span
                       className="picon"
                       style={
-                        typeof getPokemonStaticIcon(
+                        getPokemonStaticIcon(
                           item.pokemon.num,
                           item.pokemon.name,
-                        ) === "object"
-                          ? (getPokemonStaticIcon(
-                              item.pokemon.num,
-                              item.pokemon.name,
-                            ) as any)
-                          : {}
+                        ) as React.CSSProperties
                       }
                     ></span>
                   </div>
@@ -852,10 +864,10 @@ export default function ContestDetail() {
                     {tier.name} ({tier.price} G) - {tier.items.length} 只
                   </div>
                   <div className="flex flex-wrap content-start gap-1">
-                    {tier.items.map((item: any) => {
+                    {tier.items.map((item) => {
                       const tiers = Array.isArray(contest.priceTiers)
-                        ? contest.priceTiers
-                        : (contest.priceTiers as any)?.tiers;
+                        ? (contest.priceTiers as any[])
+                        : (((contest.priceTiers as any)?.tiers || []) as any[]);
                       const inTierNames = tiers
                         ? tiers
                             .filter((t: any) =>
@@ -900,15 +912,10 @@ export default function ContestDetail() {
                           <span
                             className="picon"
                             style={
-                              typeof getPokemonStaticIcon(
+                              getPokemonStaticIcon(
                                 item.pokemon.num,
                                 item.pokemon.name,
-                              ) === "object"
-                                ? (getPokemonStaticIcon(
-                                    item.pokemon.num,
-                                    item.pokemon.name,
-                                  ) as any)
-                                : {}
+                              ) as React.CSSProperties
                             }
                           ></span>
                         </div>
@@ -924,10 +931,10 @@ export default function ContestDetail() {
         {/* Unified Pool Display for AUCTION mode */}
         {contest.draftMode === "AUCTION" && (
           <div className="flex flex-wrap content-start gap-1">
-            {unifiedPool.map((item: any) => {
+            {unifiedPool.map((item) => {
               const tiers = Array.isArray(contest.priceTiers)
-                ? contest.priceTiers
-                : (contest.priceTiers as any)?.tiers;
+                ? (contest.priceTiers as any[])
+                : (((contest.priceTiers as any)?.tiers || []) as any[]);
               const inTierNames = tiers
                 ? tiers
                     .filter((t: any) => t.pokemonIds?.includes(item.pokemon.id))
@@ -967,15 +974,10 @@ export default function ContestDetail() {
                   <span
                     className="picon"
                     style={
-                      typeof getPokemonStaticIcon(
+                      getPokemonStaticIcon(
                         item.pokemon.num,
                         item.pokemon.name,
-                      ) === "object"
-                        ? (getPokemonStaticIcon(
-                            item.pokemon.num,
-                            item.pokemon.name,
-                          ) as any)
-                        : {}
+                      ) as React.CSSProperties
                     }
                   ></span>
                 </div>
@@ -1121,10 +1123,10 @@ export default function ContestDetail() {
                         <span
                           className="picon"
                           style={
-                            typeof getPokemonStaticIcon(p.num, p.name) ===
-                            "object"
-                              ? (getPokemonStaticIcon(p.num, p.name) as any)
-                              : {}
+                            getPokemonStaticIcon(
+                              p.num,
+                              p.name,
+                            ) as React.CSSProperties
                           }
                         ></span>
                       </div>

@@ -5,6 +5,7 @@ import {
   type PriceTier,
   type DPTargetMode,
 } from "@/app/lib/business/draft";
+import { Contest } from "@/app/types/draft";
 import { AppError } from "../errors";
 
 export class DraftError extends AppError {
@@ -56,12 +57,15 @@ export const DraftService = {
     // ========================================
     // DP Fesibility Check
     // ========================================
-    const rawPriceTiers = (contest as any).priceTiers;
+    const rawPriceTiers = (contest as unknown as Contest).priceTiers;
+
+    // Normalize priceTiers: old format was Array, new format is { tiers: Array, dpTargetMode: string }
     const priceTiers: PriceTier[] | null = Array.isArray(rawPriceTiers)
-      ? rawPriceTiers
-      : (rawPriceTiers?.tiers ?? null);
+      ? (rawPriceTiers as unknown as PriceTier[])
+      : (rawPriceTiers as any)?.tiers || null;
+
     const dpTargetMode: DPTargetMode =
-      (rawPriceTiers?.dpTargetMode as DPTargetMode) === "MINIMUM"
+      ((rawPriceTiers as any)?.dpTargetMode as DPTargetMode) === "MINIMUM"
         ? "MINIMUM"
         : "BEST";
     const pokemonPool = contest.pokemonPool;
@@ -142,7 +146,7 @@ export const DraftService = {
 
     // 3. Auction Mode Checks
     if (contest.draftMode === "AUCTION") {
-      const basePrice = (contest as any).auctionBasePrice || 10;
+      const basePrice = (contest as unknown as Contest).auctionBasePrice || 10;
       const minTotalCost = basePrice * contest.maxPokemonPerPlayer;
 
       if (contest.playerTokens < minTotalCost) {
@@ -197,7 +201,7 @@ export const DraftService = {
           activePokemonId: null,
           highestBid: null,
           highestBidderId: null,
-        } as any,
+        },
       });
 
       // Update Player Pick Orders

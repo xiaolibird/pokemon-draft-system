@@ -52,7 +52,11 @@ export function getPokemonStaticIcon(
   }
 
   // Legacy/Individual file fallback
-  return `https://play.pokemonshowdown.com/sprites/gen5/${cleanId}.png`;
+  return {
+    backgroundImage: `url(https://play.pokemonshowdown.com/sprites/gen5/${cleanId}.png)`,
+    backgroundPosition: "center",
+    backgroundSize: "contain",
+  };
 }
 
 /**
@@ -89,18 +93,28 @@ export function getPokemonIconStyle(
   };
 }
 
+export interface PSQueryFilters {
+  name: string;
+  types: string[];
+  excludeTypes: string[];
+  gens: number[];
+  excludeGens: number[];
+  excludeNames: string[];
+  stats: Array<{ stat: string; op: string; value: number }>;
+}
+
 /**
  * Parses a Pokemon Showdown style search query string into a structured filter object.
  * Query format examples: "type:Fire, atk>100, hp<150, bst=500, charizard, gen:9"
  *
  * FIXED: Now supports range queries like "hp>100, hp<150" without overwriting
  */
-export function parsePSQuery(query: string) {
+export function parsePSQuery(query: string): PSQueryFilters {
   const parts = query
     .split(",")
     .map((p) => p.trim())
     .filter((p) => p.length > 0);
-  const filters: any = {
+  const filters: PSQueryFilters = {
     name: "",
     types: [] as string[],
     excludeTypes: [] as string[],

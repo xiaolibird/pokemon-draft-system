@@ -69,18 +69,18 @@ export default function AdminSpectate() {
       .then((res) => (res.ok ? res.json() : []))
       .then(setDraftHistory)
       .catch(console.error);
-  }, [contestId, contest]); // Re-run when contest state changes (controlled by internal logic)
+  }, [contestId, contest]); // Re-run when contest state changes
 
   // Timer Logic (Read-only for admin)
   useEffect(() => {
-    if (
-      contest?.bidEndTime &&
-      contest.auctionPhase === "BIDDING" &&
-      !(contest as any)?.isPaused &&
-      contest.status === "ACTIVE"
-    ) {
+    const isBidding = contest?.auctionPhase === "BIDDING";
+    const isPaused = contest?.isPaused;
+    const isActive = contest?.status === "ACTIVE";
+    const hasEndTime = !!contest?.bidEndTime;
+
+    if (hasEndTime && isBidding && !isPaused && isActive) {
       const timer = setInterval(() => {
-        const diff = contest.bidEndTime
+        const diff = contest?.bidEndTime
           ? new Date(contest.bidEndTime).getTime() - Date.now()
           : 0;
         setTimeLeft(diff);
@@ -89,12 +89,7 @@ export default function AdminSpectate() {
     } else {
       setTimeLeft(null);
     }
-  }, [
-    contest?.bidEndTime,
-    contest?.auctionPhase,
-    contest?.status,
-    (contest as any)?.isPaused,
-  ]);
+  }, [contest]);
 
   // Admin Controls
   const handleControl = async (action: string) => {

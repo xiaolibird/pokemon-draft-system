@@ -8,19 +8,12 @@
 
 import { getPokemonStaticIcon } from "@/app/lib/utils/helpers";
 import { memo } from "react";
-
-interface Player {
-  id: string;
-  username: string;
-  tokens: number;
-  ownedPokemon?: any[];
-  lastSeenAt?: string | Date | null;
-}
+import { PlayerWithRelations, Contest, Pokemon } from "@/app/types/draft";
 
 interface PlayerSidebarProps {
-  players: Player[];
+  players: PlayerWithRelations[];
   currentPlayerId: string | null;
-  contest: any;
+  contest: Contest;
   maxPokemon: number;
 }
 
@@ -47,7 +40,7 @@ const PlayerSidebarInner = function PlayerSidebar({
     const byId = new Map(players.map((p) => [p.id, p]));
     const result = order
       .map((pid) => byId.get(pid))
-      .filter(Boolean) as Player[];
+      .filter(Boolean) as PlayerWithRelations[];
 
     // Add any players not in draft order
     for (const p of players) {
@@ -171,7 +164,7 @@ const PlayerSidebarInner = function PlayerSidebar({
               {/* Pokemon Icons */}
               {player.ownedPokemon && player.ownedPokemon.length > 0 && (
                 <div className="flex flex-wrap gap-1">
-                  {player.ownedPokemon.slice(0, 6).map((owned: any) => (
+                  {player.ownedPokemon.slice(0, 6).map((owned) => (
                     <span
                       key={owned.id}
                       className="picon picon-sm"
@@ -185,7 +178,7 @@ const PlayerSidebarInner = function PlayerSidebar({
                               owned.pokemon.num,
                               owned.pokemon.name,
                               "sm",
-                            ) as any)
+                            ) as React.CSSProperties)
                           : {}
                       }
                       title={owned.pokemon.nameCn || owned.pokemon.name}

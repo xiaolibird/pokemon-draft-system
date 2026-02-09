@@ -11,19 +11,11 @@
 import { apiFetch } from "../api/fetch";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import {
-  ContestState,
-  PoolItem,
-  Contest,
-  Player,
-  PlayerWithRelations,
-} from "@/app/types/draft";
-import { logDebug, logWarn, logInfo } from "../logger-client";
+import { PoolItem, Contest, PlayerWithRelations } from "@/app/types/draft";
+import { logDebug, logWarn, logInfo, logError } from "../logger-client";
 
 // SSE 配置常量
-const SSE_PUSH_INTERVAL = 2000; // SSE推送间隔（毫秒）
 const POLLING_INTERVAL = 2000; // Polling间隔
-const CONNECTION_TIMEOUT = 5000; // 连接超时时间
 const MAX_CONSECUTIVE_ERRORS = 2; // 最大连续错误次数
 
 export interface ContestStreamData {
@@ -149,6 +141,11 @@ export function useContestStream(options: UseContestStreamOptions) {
     }
   }, [contestId, enabled, updateDataSafe]);
 
+  const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectAttempts = useRef(0);
+  const MAX_RECONNECT_ATTEMPTS = 5;
+  const BASE_RECONNECT_DELAY = 3000;
+
   // Setup SSE connection
   const connectSSE = useCallback(() => {
     if (!isSSESupported() || !enabled) {
@@ -156,7 +153,21 @@ export function useContestStream(options: UseContestStreamOptions) {
       return false;
     }
 
+    // Clear any existing reconnect timer
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+      reconnectTimerRef.current = null;
+    }
+
     try {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
+
+      logDebug("Attempting SSE connection", {
+        contestId,
+        attempt: reconnectAttempts.current + 1,
+      });
       const eventSource = new EventSource(`/api/contests/${contestId}/stream`);
       eventSourceRef.current = eventSource;
 
@@ -165,8 +176,9 @@ export function useContestStream(options: UseContestStreamOptions) {
         setStatus("connected");
         setError(null);
 
-        // 重置连续错误计数
+        // 重置连续错误计数和尝试次数
         consecutiveErrors.current = 0;
+        reconnectAttempts.current = 0;
         setConnectionQuality("good");
         logInfo("SSE connected", { contestId });
 
@@ -240,15 +252,17 @@ export function useContestStream(options: UseContestStreamOptions) {
                 prev.pokemonPool.map((p) => [p.id, p]),
               );
 
-              newPool = parsed.pokemonPool.map((newItem: any) => {
-                const existing = existingMap.get(newItem.id);
-                if (existing) {
-                  // Merge: keep existing static data, overwrite with new dynamic data
-                  return { ...existing, ...newItem };
-                }
-                // If it's a completely new item, return as is (should contain full data in that case, or we accept it's bare)
-                return newItem;
-              });
+              newPool = parsed.pokemonPool.map(
+                (newItem: Partial<PoolItem> & { id: string }) => {
+                  const existing = existingMap.get(newItem.id);
+                  if (existing) {
+                    // Merge: keep existing static data, overwrite with new dynamic data
+                    return { ...existing, ...newItem };
+                  }
+                  // If it's a completely new item, return as is (should contain full data in that case, or we accept it's bare)
+                  return newItem;
+                },
+              );
             }
 
             const mergedData: ContestStreamData = {
@@ -274,7 +288,7 @@ export function useContestStream(options: UseContestStreamOptions) {
         }
       };
 
-      eventSource.onerror = () => {
+      eventSource.onerror = (e) => {
         if (!isMountedRef.current) return;
 
         consecutiveErrors.current++;
@@ -285,21 +299,49 @@ export function useContestStream(options: UseContestStreamOptions) {
           maxErrors: MAX_CONSECUTIVE_ERRORS,
         });
 
+        // Close current connection
+        eventSource.close();
+        eventSourceRef.current = null;
+
         if (consecutiveErrors.current >= MAX_CONSECUTIVE_ERRORS) {
           setConnectionQuality("disconnected");
-          eventSource.close();
-          eventSourceRef.current = null;
           setStatus("polling");
 
-          logWarn("SSE disconnected after max errors, switching to polling", {
+          logWarn("SSE disconnected after max errors, switched to polling", {
             contestId,
             maxErrors: MAX_CONSECUTIVE_ERRORS,
           });
+
+          // Schedule reconnection with exponential backoff
+          if (reconnectAttempts.current < MAX_RECONNECT_ATTEMPTS) {
+            const delay = Math.min(
+              BASE_RECONNECT_DELAY * Math.pow(2, reconnectAttempts.current),
+              30000, // Max 30s
+            );
+
+            logInfo(`Scheduling SSE reconnect in ${delay}ms`, {
+              contestId,
+              attempt: reconnectAttempts.current + 1,
+            });
+
+            reconnectTimerRef.current = setTimeout(() => {
+              reconnectAttempts.current++;
+              connectSSE();
+            }, delay);
+          } else {
+            logError(
+              "SSE max reconnect attempts reached, staying in polling mode",
+              new Error("Max reconnect attempts"),
+              { contestId },
+            );
+          }
         } else {
           setConnectionQuality("poor");
+          // Immediate retry for minor errors (flicker)
+          connectSSE();
         }
 
-        // Start polling as fallback if not already running
+        // Ensure polling is running if we are not connected
         if (!pollIntervalRef.current) {
           pollIntervalRef.current = setInterval(fetchData, POLLING_INTERVAL);
         }
@@ -326,12 +368,7 @@ export function useContestStream(options: UseContestStreamOptions) {
     fetchData();
 
     // Try SSE first
-    const sseConnected = connectSSE();
-
-    // Fall back to polling if SSE not supported or failed
-    if (!sseConnected) {
-      pollIntervalRef.current = setInterval(fetchData, 2000);
-    }
+    connectSSE();
 
     return () => {
       isMountedRef.current = false;
@@ -344,6 +381,11 @@ export function useContestStream(options: UseContestStreamOptions) {
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
         pollIntervalRef.current = null;
+      }
+
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
       }
     };
   }, [enabled, fetchData, connectSSE]);

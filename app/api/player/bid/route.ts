@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json(result);
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error instanceof AuctionError) {
       logWarn("Bid validation failed", {
         code: error.code,
@@ -89,7 +89,7 @@ export async function POST(request: Request) {
         { status: error.status },
       );
     }
-    logError("Bid error", error, { path: "/api/player/bid" });
+    logError("Bid error", error as Error, { path: "/api/player/bid" });
     return apiError("服务器错误", "INTERNAL_SERVER_ERROR", { status: 500 });
   }
 }

@@ -10,6 +10,7 @@
 
 import { useMemo } from "react";
 import { parsePSQuery, getGeneration } from "../utils/helpers";
+import { PoolItem, Pokemon } from "@/app/types/draft";
 
 export interface TypeFilter {
   mode: "AND" | "OR";
@@ -24,7 +25,7 @@ export interface GenFilter {
 }
 
 export interface UsePokemonFilterOptions {
-  pool: any[];
+  pool: PoolItem[];
   searchTerm?: string;
   types?: TypeFilter;
   gens?: GenFilter;
@@ -131,7 +132,9 @@ export function usePokemonFilter(options: UsePokemonFilterOptions) {
               !["hp", "atk", "def", "spa", "spd", "spe", "bst"].includes(stat)
             )
               continue;
-            const pStat = (item.pokemon as any)[stat] as number;
+            const pStat = (item.pokemon as unknown as Record<string, number>)[
+              stat
+            ];
             if (op === ">" && !(pStat > value)) return false;
             if (op === ">=" && !(pStat >= value)) return false;
             if (op === "<" && !(pStat < value)) return false;

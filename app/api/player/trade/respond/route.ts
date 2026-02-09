@@ -3,7 +3,7 @@ import { prisma } from "@/app/lib/db/prisma";
 import { verifyToken } from "@/app/lib/auth/jwt";
 import { cookies } from "next/headers";
 import { checkFusionExclusive } from "@/app/lib/utils/constants";
-import { broadcastContestUpdate } from "@/app/api/contests/[id]/stream/route";
+import { broadcastContestUpdate } from "@/app/lib/sse/server";
 import { apiError } from "@/app/lib/errors";
 import {
   checkRateLimit,

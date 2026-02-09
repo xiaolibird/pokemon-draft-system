@@ -1,4 +1,5 @@
 import { prisma } from "@/app/lib/db/prisma";
+import { Contest, PoolItem } from "@/app/types/draft";
 import {
   countOwnedInContest,
   countOwnedInContestBatch,
@@ -9,7 +10,7 @@ import {
   canFillTeamAfterBid,
   getAvailableCountForAuction,
 } from "@/app/lib/business/draft";
-import { broadcastContestUpdate } from "@/app/api/contests/[id]/stream/route";
+import { broadcastContestUpdate } from "@/app/lib/sse/server";
 import { AppError } from "../errors";
 import logger, { logInfo, logError } from "../logger";
 
@@ -57,7 +58,9 @@ export const AuctionService = {
         undefined,
         404,
       );
-    const contest = player.contest as any;
+    const contest = player.contest as unknown as Contest & {
+      pokemonPool: PoolItem[];
+    };
 
     if (!contest)
       throw new AuctionError(
@@ -83,8 +86,9 @@ export const AuctionService = {
     }
 
     // Time Limit Check
-    const hasTimeLimit = contest.auctionBidDuration > 0 && contest.bidEndTime;
-    if (hasTimeLimit && new Date() > new Date(contest.bidEndTime)) {
+    const hasTimeLimit =
+      (contest.auctionBidDuration ?? 0) > 0 && contest.bidEndTime;
+    if (hasTimeLimit && new Date() > new Date(contest.bidEndTime!)) {
       throw new AuctionError("出价已截止", "BID_TIME_EXPIRED");
     }
 
@@ -119,7 +123,7 @@ export const AuctionService = {
 
     // Active Pokemon Check
     const activePoolItem = await prisma.pokemonPool.findUnique({
-      where: { id: contest.activePokemonId },
+      where: { id: contest.activePokemonId || "" },
       include: { pokemon: true },
     });
 
@@ -129,8 +133,8 @@ export const AuctionService = {
 
     // Fusion Check
     const pokemonIdsInPool = new Set(
-      contest.pokemonPool.map((p: any) => p.pokemonId as string),
-    ) as Set<string>;
+      contest.pokemonPool.map((p) => p.pokemonId),
+    );
     const ownedPokemonIds = player.ownedPokemon
       .filter((op) => pokemonIdsInPool.has(op.pokemonId))
       .map((op) => op.pokemonId);
@@ -150,8 +154,8 @@ export const AuctionService = {
 
     // DP Viability Check
     const availableCount = getAvailableCountForAuction(
-      contest.pokemonPool.map((p: any) => ({ id: p.id, status: p.status })),
-      contest.activePokemonId,
+      contest.pokemonPool.map((p) => ({ id: p.id, status: p.status as any })),
+      contest.activePokemonId as string,
     );
 
     const allPlayers = await prisma.player.findMany({
@@ -219,7 +223,7 @@ export const AuctionService = {
           }
         }
 
-        const curVersion = (contest as any).version ?? 0;
+        const curVersion = contest.version ?? 0;
 
         const updateResult =
           hasTimeLimit && resolveEndTime
@@ -238,15 +242,16 @@ export const AuctionService = {
         // We re-fetch pool item inside tx to be safe, though activePoolItem is already fetched.
         // Using activePoolItem is fine as it doesn't change during bid (only price/owner change).
         if (activePoolItem) {
+          const poolItemTyped = activePoolItem as unknown as PoolItem;
           await tx.draftAction.create({
             data: {
               contestId: contest.id,
               playerId,
               actionType: "BID",
-              pokemonId: activePoolItem.pokemonId,
+              pokemonId: poolItemTyped.pokemonId,
               details: {
                 pokemonName:
-                  activePoolItem.pokemon.nameCn || activePoolItem.pokemon.name,
+                  poolItemTyped.pokemon.nameCn || poolItemTyped.pokemon.name,
                 bidAmount: amount,
                 balance: player.tokens,
               },
@@ -270,13 +275,13 @@ export const AuctionService = {
       });
 
       return result;
-    } catch (error: any) {
-      logError("Bid execution failed", error, {
+    } catch (error: unknown) {
+      logError("Bid execution failed", error as Error, {
         playerId,
         amount,
         contestId: contest.id,
       });
-      if (error.message === "RACE_CONDITION") {
+      if ((error as Error).message === "RACE_CONDITION") {
         throw new AuctionError(
           "出价失败：价格已被更新或时间已截止",
           "RACE_CONDITION",

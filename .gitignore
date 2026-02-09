@@ -80,3 +80,4 @@ test-results/
 
 *deprecated.*
 browsers/
+.npm-cache

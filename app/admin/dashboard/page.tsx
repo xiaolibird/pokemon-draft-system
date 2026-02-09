@@ -51,7 +51,7 @@ export default function AdminDashboard() {
       }
     }, 500);
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchQuery, debouncedSearch]);
 
   // Fetch Data
   useEffect(() => {
@@ -88,7 +88,7 @@ export default function AdminDashboard() {
     };
 
     fetchData();
-  }, [pagination.current, pagination.limit, statusFilter, debouncedSearch]);
+  }, [pagination.current, pagination.limit, statusFilter, debouncedSearch]); // 明确依赖分页具体字段，避免浅比较问题
 
   // Reset to page 1 when filter changes
   const handleStatusChange = (status: any) => {
@@ -207,7 +207,7 @@ export default function AdminDashboard() {
                 const isActive = statusFilter === status;
                 return (
                   <button
-                    key={status}
+                    key={status} // 显式添加 key
                     onClick={() => handleStatusChange(status)}
                     className={`rounded-lg px-4 py-1.5 text-sm font-bold whitespace-nowrap transition-all ${isActive ? "bg-white text-blue-600 shadow-sm dark:bg-gray-800 dark:text-blue-400" : "text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-gray-200"} `}
                   >

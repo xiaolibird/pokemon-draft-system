@@ -6,8 +6,10 @@
 
 "use client";
 
+import { DraftHistoryItem } from "@/app/types/draft";
+
 interface DraftHistoryProps {
-  history: any[];
+  history: DraftHistoryItem[];
   isOpen: boolean;
   onClose: () => void;
 }

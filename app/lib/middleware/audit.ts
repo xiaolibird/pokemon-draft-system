@@ -16,7 +16,7 @@ export interface AuditLogData {
   resourceId?: string;
   ipAddress?: string;
   userAgent?: string;
-  details?: any;
+  details?: Record<string, unknown>;
   status: AuditStatus;
 }
 
@@ -47,7 +47,7 @@ export async function logAudit(data: AuditLogData) {
         resourceId: data.resourceId,
         ipAddress: data.ipAddress,
         userAgent: data.userAgent,
-        details: data.details,
+        details: data.details as any,
         status: data.status,
       },
     });
@@ -161,7 +161,7 @@ export async function getAuditLogs(filters: {
   endDate?: Date;
   limit?: number;
 }) {
-  const where: any = {};
+  const where: Record<string, unknown> = {};
 
   if (filters.userId) where.userId = filters.userId;
   if (filters.action) where.action = filters.action;
@@ -170,13 +170,14 @@ export async function getAuditLogs(filters: {
   if (filters.status) where.status = filters.status;
 
   if (filters.startDate || filters.endDate) {
-    where.timestamp = {};
-    if (filters.startDate) where.timestamp.gte = filters.startDate;
-    if (filters.endDate) where.timestamp.lte = filters.endDate;
+    const timestamp: Record<string, unknown> = {};
+    if (filters.startDate) timestamp.gte = filters.startDate;
+    if (filters.endDate) timestamp.lte = filters.endDate;
+    where.timestamp = timestamp;
   }
 
   return await prisma.auditLog.findMany({
-    where,
+    where: where as any, // Cast to any for Prisma compatibility if needed
     orderBy: { timestamp: "desc" },
     take: filters.limit || 100,
   });

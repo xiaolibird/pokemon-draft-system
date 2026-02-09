@@ -73,7 +73,7 @@ export async function POST(request: Request) {
         data: {
           username: updatedUsername,
           isReady: true,
-        } as any,
+        },
       });
     }
 

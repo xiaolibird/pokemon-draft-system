@@ -7,9 +7,10 @@
 import { memo } from "react";
 import { getPokemonStaticIcon } from "@/app/lib/utils/helpers";
 import { TYPE_COLORS } from "@/app/lib/utils/constants";
+import { PoolItem } from "@/app/types/draft";
 
 interface PokemonCardProps {
-  item: any;
+  item: PoolItem;
   isMyTurn: boolean;
   onAction: () => void;
   mode: string;
@@ -42,12 +43,8 @@ function PokemonCardComponent({
             : "cursor-not-allowed border-gray-200 bg-gray-50 opacity-60 dark:border-gray-800 dark:bg-gray-900/50"
       } `}
     >
-      {/* Pokemon Icon */}
       <div className="mb-3 flex justify-center">
-        <span
-          className="picon picon-lg"
-          style={typeof picon === "object" ? (picon as any) : {}}
-        />
+        <span className="picon picon-lg" style={picon as React.CSSProperties} />
       </div>
 
       {/* Pokemon Name */}

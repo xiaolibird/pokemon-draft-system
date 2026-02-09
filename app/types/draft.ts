@@ -3,6 +3,13 @@
 // Solves IDE resolution issues with @prisma/client imports
 // ----------------------------------------------------------------------
 
+export interface PriceTier {
+  threshold: number;
+  price: number;
+  name?: string;
+  color?: string;
+}
+
 export interface Contest {
   id: string;
   name: string;
@@ -12,8 +19,7 @@ export interface Contest {
   maxPokemonPerPlayer: number;
   draftMode: string;
   auctionBasePrice: number;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  priceTiers: any;
+  priceTiers: PriceTier[] | null;
   currentTurn: number;
   draftOrder: string[];
   auctionPhase: string | null;
@@ -83,8 +89,7 @@ export interface DraftAction {
   playerId: string | null;
   actionType: string;
   pokemonId: string | null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  details: any;
+  details: Record<string, any>;
   timestamp: Date;
 }
 
@@ -99,6 +104,7 @@ export interface DraftHistoryItem {
     bidAmount?: number;
     pokemonName?: string;
     skippedUsername?: string;
+    [key: string]: any;
   };
   player?: { username?: string };
 }
@@ -115,15 +121,45 @@ export type PlayerWithRelations = Player & {
   _count?: {
     ownedPokemon: number;
   };
-  ownedPokemon?: Partial<Pokemon>[];
+  ownedPokemon?: {
+    id: string;
+    purchasePrice?: number | null;
+    pokemon: Pokemon;
+  }[];
 };
 
 /** 比赛实时状态数据结构 (useContestStream 返回) */
 export interface ContestState {
-  contest: Contest & {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    priceTiers?: any;
-  };
+  contest: Contest;
   players: PlayerWithRelations[];
   pokemonPool: PoolItem[];
+}
+
+/** 管理端比赛详情数据结构 */
+export interface AdminContest extends Contest {
+  pokemonPool: Array<{
+    id: string;
+    status: string;
+    basePrice: number;
+    pokemon: Pokemon;
+  }>;
+  players: Array<
+    Player & {
+      ownedPokemon: Array<{
+        id: string;
+        purchasePrice: number | null;
+        pokemon: Pick<Pokemon, "id" | "name" | "nameCn" | "num" | "types">;
+      }>;
+      _count: {
+        ownedPokemon: number;
+      };
+    }
+  >;
+  auctionExpired?: boolean;
+  timestamp?: number;
+}
+
+/** 搜索宝可梦结果接口 */
+export interface PokemonSearchResult extends Pokemon {
+  isInPool?: boolean;
 }

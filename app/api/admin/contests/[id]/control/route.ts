@@ -8,7 +8,7 @@ import {
   rateLimitConfigs,
 } from "@/app/lib/middleware/rate-limit";
 import { executeAuctionFinalize } from "@/app/lib/business/auction";
-import { broadcastContestUpdate } from "@/app/api/contests/[id]/stream/route";
+import { broadcastContestUpdate } from "@/app/lib/sse/server";
 import { apiError } from "@/app/lib/errors";
 
 /**

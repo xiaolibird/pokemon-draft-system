@@ -1,15 +1,17 @@
 import { getPokemonStaticIcon } from "@/app/lib/utils/helpers";
 import { memo, useEffect } from "react";
+import { Contest, PoolItem } from "@/app/types/draft";
 
 interface AuctionPanelProps {
-  contest: any;
-  activePokemon: any;
+  contest: Contest | null;
+  activePokemon: PoolItem | null;
   timeLeft: number | null;
   bidAmount: number;
   setBidAmount: (amount: number) => void;
   onBid: () => void;
   isSubmitting: boolean;
   playerId: string | null;
+  isSpectator?: boolean;
   onForceRefresh?: () => void;
   onFinalize?: () => void;
 }
@@ -26,7 +28,7 @@ export const AuctionPanel = memo(function AuctionPanel({
   isSpectator = false,
   onForceRefresh,
   onFinalize,
-}: AuctionPanelProps & { isSpectator?: boolean }) {
+}: AuctionPanelProps) {
   const isStuck = timeLeft !== null && timeLeft <= 0;
 
   // Auto-refresh logic for stuck state
@@ -83,17 +85,11 @@ export const AuctionPanel = memo(function AuctionPanel({
             <span
               className="picon picon-lg"
               style={
-                typeof getPokemonStaticIcon(
+                getPokemonStaticIcon(
                   activePokemon.pokemon.num,
                   activePokemon.pokemon.name,
                   "lg",
-                ) === "object"
-                  ? (getPokemonStaticIcon(
-                      activePokemon.pokemon.num,
-                      activePokemon.pokemon.name,
-                      "lg",
-                    ) as any)
-                  : {}
+                ) as React.CSSProperties
               }
             />
           </div>

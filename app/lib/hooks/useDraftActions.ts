@@ -132,7 +132,21 @@ export function useDraftActions({
         if (res.ok) {
           revalidate();
         } else {
-          showToast({ type: "error", message: json.error || "出价失败" });
+          // Special handling for stale price/race conditions
+          if (json.code === "RACE_CONDITION" || json.code === "BID_TOO_LOW") {
+            revalidate(); // Trigger immediate update to get latest price
+            showToast({
+              type: "error",
+              message: "价格已过时，请重试",
+              suggestion: json.suggestion || "最新价格已更新",
+            });
+          } else {
+            showToast({
+              type: "error",
+              message: json.error || "出价失败",
+              suggestion: json.suggestion,
+            });
+          }
         }
       } catch (err) {
         clearTimeout(timeoutId);

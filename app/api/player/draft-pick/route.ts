@@ -11,25 +11,27 @@ import {
   checkRateLimit,
   rateLimitConfigs,
 } from "@/app/lib/middleware/rate-limit";
-import { broadcastContestUpdate } from "@/app/api/contests/[id]/stream/route";
+import { broadcastContestUpdate } from "@/app/lib/sse/server";
 import {
   countOwnedInContest,
   countOwnedInContestBatch,
 } from "@/app/lib/business/auction";
 import { apiError } from "@/app/lib/errors";
+import { Contest, PoolItem } from "@/app/types/draft";
+import { Prisma } from "@prisma/client";
 
 /**
  * Helper function to find next valid player who can draft
  * Skip players who are bankrupt or full (reached maxPokemon)
  */
 async function findNextValidTurnSnake(
-  tx: any,
+  tx: Prisma.TransactionClient,
   contestId: string,
   startTurn: number,
   draftOrder: string[],
   maxPokemon: number,
   pokemonIdsInPool: Set<string>,
-  availablePool: any[],
+  availablePool: PoolItem[],
 ): Promise<number> {
   const totalTurns = draftOrder.length;
 
@@ -129,7 +131,7 @@ export async function POST(request: Request) {
       });
 
       if (!player) throw new Error("选手未找到");
-      const contest = player.contest as any;
+      const contest = player.contest;
 
       // 2. Check if paused
       if (contest.isPaused || contest.status === "PAUSED") {
@@ -180,14 +182,12 @@ export async function POST(request: Request) {
       // 6. DP 可行性检查：确保操作后还能选满队伍
 
       // 优化：一次性查询所有池子数据并缓存
-      const allPoolItems = await tx.pokemonPool.findMany({
+      const allPoolItems = (await tx.pokemonPool.findMany({
         where: { contestId: contest.id },
-      });
-      const pokemonIdsInPool = new Set(
-        allPoolItems.map((p: any) => p.pokemonId),
-      );
+      })) as unknown as PoolItem[];
+      const pokemonIdsInPool = new Set(allPoolItems.map((p) => p.pokemonId));
       const availablePool = allPoolItems.filter(
-        (p: any) => p.status === "AVAILABLE",
+        (p) => p.status === "AVAILABLE",
       );
 
       // 合体互斥检查（使用缓存的 pokemonIdsInPool）
@@ -206,10 +206,10 @@ export async function POST(request: Request) {
 
       // DP 可行性检查（使用缓存的 allPoolItems）
       const availablePrices = getAvailablePricesAfterPick(
-        allPoolItems.map((p: any) => ({
+        allPoolItems.map((p) => ({
           id: p.id,
           basePrice: p.basePrice,
-          status: p.status,
+          status: p.status as any,
         })),
         pokemonPoolId,
       );
@@ -252,14 +252,14 @@ export async function POST(request: Request) {
         data: { tokens: { decrement: cost } },
       });
 
-      // 9. Advance active turn with auto-skip logic (防止死锁)
+      // Advance active turn with auto-skip logic (防止死锁)
       // 使用之前更新过的池子状态缓存（手动更新当前项状态以避免再次查询）
-      const updatedPoolItemsForNextTurn = allPoolItems.map((p: any) =>
-        p.id === pokemonPoolId ? { ...p, status: "DRAFTED" } : p,
+      const updatedPoolItemsForNextTurn = allPoolItems.map((p) =>
+        p.id === pokemonPoolId ? { ...p, status: "PICKED" as const } : p,
       );
       const availablePoolForNextTurn = updatedPoolItemsForNextTurn.filter(
-        (p: any) => p.status === "AVAILABLE",
-      );
+        (p) => p.status === "AVAILABLE",
+      ) as PoolItem[];
 
       const nextTurn = await findNextValidTurnSnake(
         tx,
@@ -272,7 +272,7 @@ export async function POST(request: Request) {
       );
 
       const isCompleted = nextTurn >= contest.draftOrder.length;
-      const curVersion = (contest as any).version ?? 0;
+      const curVersion = contest.version ?? 0;
 
       const updated = await tx.$executeRaw`
                 UPDATE "Contest" SET "currentTurn" = ${nextTurn}, "status" = ${isCompleted ? "COMPLETED" : "ACTIVE"}, "version" = "version" + 1
@@ -301,21 +301,17 @@ export async function POST(request: Request) {
     void broadcastContestUpdate(result.contestId);
     const { contestId: _cid, ...jsonResult } = result;
     return NextResponse.json(jsonResult);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Draft Pick Error:", error);
-    const msg = error.message || "服务器错误";
+    const msg = (error as Error).message || "服务器错误";
 
     // 版本冲突
     if (msg === "CONTEST_VERSION_CONFLICT") {
-      return apiError(
-        "状态已更新，请刷新后重试",
-        "VERSION_CONFLICT",
-        {
-          reason: "比赛状态已被其他用户更新",
-          suggestion: "请刷新页面获取最新状态后重试",
-          status: 409,
-        },
-      );
+      return apiError("状态已更新，请刷新后重试", "VERSION_CONFLICT", {
+        reason: "比赛状态已被其他用户更新",
+        suggestion: "请刷新页面获取最新状态后重试",
+        status: 409,
+      });
     }
 
     // 权限相关错误
@@ -358,11 +354,11 @@ export async function POST(request: Request) {
     if (msg.startsWith("DP_VALIDATION_FAILED:")) {
       const dpResult = (error as any).dpResult;
       const reason = msg.replace("DP_VALIDATION_FAILED:", "");
-      return apiError(
-        `操作被阻止：${reason}`,
-        "DP_VALIDATION_FAILED",
-        { reason, suggestion: dpResult?.suggestion, status: 400 },
-      );
+      return apiError(`操作被阻止：${reason}`, "DP_VALIDATION_FAILED", {
+        reason,
+        suggestion: dpResult?.suggestion,
+        status: 400,
+      });
     }
 
     // 合体宝可梦互斥
