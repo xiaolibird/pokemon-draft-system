@@ -1,416 +1,613 @@
 /**
  * 竞价业务逻辑单元测试
  *
- * 遵循 CURSOR_RULES.md 测试规范
+ * 所有测试直接调用 auction.ts 真实导出函数，通过 mock tx 对象模拟 Prisma 查询结果
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+import {
+  countOwnedInContest,
+  countOwnedInContestBatch,
+  findNextValidTurn,
+  executeAuctionFinalize,
+} from "./auction";
 
-describe("Auction Business Logic", () => {
-  describe("countOwnedInContest - 边界测试", () => {
-    it("应该统计在本比赛池子内的宝可梦数量", () => {
-      // Given
-      const poolIds = new Set(["p1", "p2", "p3"]);
-      const owned = [
-        { pokemonId: "p1" },
-        { pokemonId: "p2" },
-        { pokemonId: "p9" },
-      ];
+// ─── 工具函数 ──────────────────────────────────────────────────────
 
-      // When - 模拟 countOwnedInContest 逻辑
-      const result = owned.filter((o) => poolIds.has(o.pokemonId)).length;
+/** 构造 mock tx，按需覆盖各 model 的方法 */
+function createMockTx(overrides: Record<string, any> = {}) {
+  return {
+    pokemonPool: {
+      findMany: vi.fn().mockResolvedValue([]),
+      findUnique: vi.fn().mockResolvedValue(null),
+      update: vi.fn().mockResolvedValue({}),
+      ...overrides.pokemonPool,
+    },
+    ownedPokemon: {
+      findMany: vi.fn().mockResolvedValue([]),
+      create: vi.fn().mockResolvedValue({}),
+      ...overrides.ownedPokemon,
+    },
+    player: {
+      findMany: vi.fn().mockResolvedValue([]),
+      update: vi.fn().mockResolvedValue({}),
+      ...overrides.player,
+    },
+    draftAction: {
+      create: vi.fn().mockResolvedValue({}),
+      ...overrides.draftAction,
+    },
+    $queryRaw: overrides.$queryRaw ?? vi.fn().mockResolvedValue([]),
+    $executeRaw: overrides.$executeRaw ?? vi.fn().mockResolvedValue(1),
+    $transaction: overrides.$transaction,
+  };
+}
 
-      // Then
-      expect(result).toBe(2);
+// ─── countOwnedInContest ────────────────────────────────────────────
+
+describe("countOwnedInContest", () => {
+  it("统计池内匹配的宝可梦数量", async () => {
+    const tx = createMockTx({
+      pokemonPool: {
+        findMany: vi
+          .fn()
+          .mockResolvedValue([
+            { pokemonId: "pk1" },
+            { pokemonId: "pk2" },
+            { pokemonId: "pk3" },
+          ]),
+      },
+      ownedPokemon: {
+        findMany: vi
+          .fn()
+          .mockResolvedValue([{ pokemonId: "pk1" }, { pokemonId: "pk2" }]),
+      },
     });
 
-    it("应该返回 0 当玩家没有任何宝可梦时", () => {
-      // Given
-      const poolIds = new Set(["p1", "p2", "p3"]);
-      const owned: { pokemonId: string }[] = [];
-
-      // When
-      const result = owned.filter((o) => poolIds.has(o.pokemonId)).length;
-
-      // Then
-      expect(result).toBe(0);
-    });
-
-    it("应该只统计当前比赛的池子，不统计其他比赛", () => {
-      // Given
-      const contestPoolIds = new Set(["p1", "p2"]);
-      const owned = [
-        { pokemonId: "p1" }, // 当前比赛
-        { pokemonId: "p3" }, // 其他比赛
-      ];
-
-      // When
-      const result = owned.filter((o) =>
-        contestPoolIds.has(o.pokemonId),
-      ).length;
-
-      // Then
-      expect(result).toBe(1);
-    });
+    const count = await countOwnedInContest(tx, "contest-1", "player-1");
+    expect(count).toBe(2);
   });
 
-  describe("findNextValidTurn - 选手轮换逻辑", () => {
-    it("应该跳过已满员的玩家", () => {
-      // Given
-      const draftOrder = ["p1", "p2", "p3", "p4"];
-      const uniquePlayerIds = [...new Set(draftOrder)];
-      const maxPokemon = 6;
-      const basePrice = 10;
-
-      // 模拟数据库查询结果
-      // p1 已满（owned=6 >= maxPokemon=6），p2 可以继续
-      const ownedCounts = new Map<string, number>();
-      ownedCounts.set("p1", 6); // 已满（owned >= maxPokemon）
-      ownedCounts.set("p2", 3); // 可以继续
-      ownedCounts.set("p3", 0); // 可以继续
-      ownedCounts.set("p4", 0); // 可以继续
-
-      const playerTokensMap = new Map<string, number>();
-      playerTokensMap.set("p1", 100);
-      playerTokensMap.set("p2", 100);
-      playerTokensMap.set("p3", 0); // 没钱了
-      playerTokensMap.set("p4", 100);
-
-      // 模拟 findNextValidTurn 逻辑
-      const numPlayers = draftOrder.length;
-
-      // 第一步：全局检查
-      let anyPlayerCanContinue = false;
-      for (const playerId of uniquePlayerIds) {
-        const tokens = playerTokensMap.get(playerId) ?? 0;
-        const ownedInContest = ownedCounts.get(playerId) ?? 0;
-        if (ownedInContest < maxPokemon && tokens >= basePrice) {
-          anyPlayerCanContinue = true;
-          break;
-        }
-      }
-
-      let result;
-      if (!anyPlayerCanContinue) {
-        result = { turn: 0, shouldComplete: true };
-      } else {
-        // 第二步：从 startTurn 开始，找下一个能继续的玩家
-        // startTurn = 0
-        for (let attempt = 0; attempt < numPlayers * 2; attempt++) {
-          const turn = attempt; // startTurn = 0
-          const playerId = draftOrder[turn % draftOrder.length];
-          const tokens = playerTokensMap.get(playerId) ?? 0;
-          const ownedInContest = ownedCounts.get(playerId) ?? 0;
-          // owned >= maxPokemon 或 tokens < basePrice 则跳过
-          if (ownedInContest >= maxPokemon || tokens < basePrice) continue;
-          result = { turn, shouldComplete: false };
-          break;
-        }
-      }
-
-      // When
-      if (!result) {
-        result = { turn: 0, shouldComplete: true };
-      }
-
-      // Then - p1 已满（owned=6 >= maxPokemon=6），p2 可以继续
-      // draftOrder[0] = p1（跳过）, draftOrder[1] = p2（有效）
-      expect(result.turn).toBe(1); // p2
-      expect(result.shouldComplete).toBe(false);
+  it("玩家无宝可梦时返回 0", async () => {
+    const tx = createMockTx({
+      pokemonPool: {
+        findMany: vi
+          .fn()
+          .mockResolvedValue([{ pokemonId: "pk1" }, { pokemonId: "pk2" }]),
+      },
+      ownedPokemon: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
     });
 
-    it("应该跳过没有足够代币的玩家", () => {
-      // Given
-      const draftOrder = ["p1", "p2", "p3"];
-      const uniquePlayerIds = [...new Set(draftOrder)];
-      const maxPokemon = 6;
-      const basePrice = 10;
-
-      // 模拟数据库查询结果
-      const ownedCounts = new Map<string, number>();
-      ownedCounts.set("p1", 0);
-      ownedCounts.set("p2", 0);
-      ownedCounts.set("p3", 0);
-
-      const playerTokensMap = new Map<string, number>();
-      playerTokensMap.set("p1", 5); // 代币不足
-      playerTokensMap.set("p2", 100);
-      playerTokensMap.set("p3", 100);
-
-      const numPlayers = draftOrder.length;
-
-      // 第一步：全局检查
-      let anyPlayerCanContinue = false;
-      for (const playerId of uniquePlayerIds) {
-        const tokens = playerTokensMap.get(playerId) ?? 0;
-        const ownedInContest = ownedCounts.get(playerId) ?? 0;
-        if (ownedInContest < maxPokemon && tokens >= basePrice) {
-          anyPlayerCanContinue = true;
-          break;
-        }
-      }
-
-      let result;
-      if (!anyPlayerCanContinue) {
-        result = { turn: 0, shouldComplete: true };
-      } else {
-        for (let attempt = 0; attempt < numPlayers * 2; attempt++) {
-          const turn = attempt;
-          const playerId = draftOrder[turn % draftOrder.length];
-          const tokens = playerTokensMap.get(playerId) ?? 0;
-          const ownedInContest = ownedCounts.get(playerId) ?? 0;
-          if (ownedInContest >= maxPokemon || tokens < basePrice) continue;
-          result = { turn, shouldComplete: false };
-          break;
-        }
-      }
-
-      if (!result) {
-        result = { turn: 0, shouldComplete: true };
-      }
-
-      // Then - p1 代币不足，p2 可以继续
-      expect(result.turn).toBe(1); // p2
-    });
-
-    it("应该返回 shouldComplete=true 当所有玩家都无法继续时", () => {
-      // Given - 所有玩家都满了
-      const draftOrder = ["p1", "p2"];
-      const uniquePlayerIds = [...new Set(draftOrder)];
-      const maxPokemon = 6;
-      const basePrice = 10;
-
-      const ownedCounts = new Map<string, number>();
-      ownedCounts.set("p1", 6); // 已满
-      ownedCounts.set("p2", 6); // 已满
-
-      const playerTokensMap = new Map<string, number>();
-      playerTokensMap.set("p1", 100);
-      playerTokensMap.set("p2", 100);
-
-      const numPlayers = draftOrder.length;
-
-      // 全局检查
-      let anyPlayerCanContinue = false;
-      for (const playerId of uniquePlayerIds) {
-        const tokens = playerTokensMap.get(playerId) ?? 0;
-        const ownedInContest = ownedCounts.get(playerId) ?? 0;
-        if (ownedInContest < maxPokemon && tokens >= basePrice) {
-          anyPlayerCanContinue = true;
-          break;
-        }
-      }
-
-      // When
-      let result;
-      if (!anyPlayerCanContinue) {
-        result = { turn: 0, shouldComplete: true };
-      } else {
-        for (let attempt = 0; attempt < numPlayers * 2; attempt++) {
-          const turn = attempt;
-          const playerId = draftOrder[turn % draftOrder.length];
-          const tokens = playerTokensMap.get(playerId) ?? 0;
-          const ownedInContest = ownedCounts.get(playerId) ?? 0;
-          if (ownedInContest >= maxPokemon || tokens < basePrice) continue;
-          result = { turn, shouldComplete: false };
-          break;
-        }
-      }
-
-      if (!result) {
-        result = { turn: 0, shouldComplete: true };
-      }
-
-      // Then
-      expect(result.shouldComplete).toBe(true);
-    });
-
-    it("应该支持蛇形选秀顺序（draftOrder 包含重复玩家）", () => {
-      // Given - 蛇形选秀：p1, p2, p3, p3, p2, p1
-      const draftOrder = ["p1", "p2", "p3", "p3", "p2", "p1"];
-      // uniquePlayerIds 会被去重
-      const uniquePlayerIds = [...new Set(draftOrder)];
-      const maxPokemon = 6;
-      const basePrice = 10;
-
-      // 模拟数据库查询结果 - p1 和 p2 都满了，只剩 p3
-      // owned >= maxPokemon 表示已满
-      const ownedCounts = new Map<string, number>();
-      ownedCounts.set("p1", 6); // 已满
-      ownedCounts.set("p2", 6); // 已满
-      ownedCounts.set("p3", 0); // 空的
-
-      const playerTokensMap = new Map<string, number>();
-      playerTokensMap.set("p1", 100);
-      playerTokensMap.set("p2", 100);
-      playerTokensMap.set("p3", 100);
-
-      const numPlayers = draftOrder.length;
-
-      // 全局检查 - p3 可以继续
-      let anyPlayerCanContinue = false;
-      for (const playerId of uniquePlayerIds) {
-        const tokens = playerTokensMap.get(playerId) ?? 0;
-        const ownedInContest = ownedCounts.get(playerId) ?? 0;
-        if (ownedInContest < maxPokemon && tokens >= basePrice) {
-          anyPlayerCanContinue = true;
-          break;
-        }
-      }
-
-      let result;
-      if (!anyPlayerCanContinue) {
-        result = { turn: 0, shouldComplete: true };
-      } else {
-        for (let attempt = 0; attempt < numPlayers * 2; attempt++) {
-          const turn = attempt;
-          const playerId = draftOrder[turn % draftOrder.length];
-          const tokens = playerTokensMap.get(playerId) ?? 0;
-          const ownedInContest = ownedCounts.get(playerId) ?? 0;
-          // owned >= maxPokemon 或 tokens < basePrice 则跳过
-          if (ownedInContest >= maxPokemon || tokens < basePrice) continue;
-          result = { turn, shouldComplete: false };
-          break;
-        }
-      }
-
-      if (!result) {
-        result = { turn: 0, shouldComplete: true };
-      }
-
-      // Then - p1 已满，p2 已满，p3 是下一个 (turn=2)
-      // draftOrder[0] = p1（跳过）, draftOrder[1] = p2（跳过）, draftOrder[2] = p3（有效）
-      expect(result.turn).toBe(2); // p3 第一次出现
-      expect(result.shouldComplete).toBe(false);
-    });
+    const count = await countOwnedInContest(tx, "contest-1", "player-1");
+    expect(count).toBe(0);
   });
 
-  describe("countOwnedInContestBatch - 批量统计", () => {
-    it("应该正确批量统计多个玩家的持有数量", () => {
-      // Given
-      const playerIds = ["p1", "p2", "p3"];
-      const contestPoolIds = new Set(["pk1", "pk2", "pk3"]);
-      const mockOwned = [
+  it("跨比赛过滤：拥有的宝可梦不在本比赛池中时不计数", async () => {
+    const tx = createMockTx({
+      pokemonPool: {
+        findMany: vi.fn().mockResolvedValue([{ pokemonId: "pk1" }]),
+      },
+      ownedPokemon: {
+        findMany: vi
+          .fn()
+          .mockResolvedValue([{ pokemonId: "pk9" }, { pokemonId: "pk10" }]),
+      },
+    });
+
+    const count = await countOwnedInContest(tx, "contest-1", "player-1");
+    expect(count).toBe(0);
+  });
+
+  it("传入 poolIdsCache 时不查询 pokemonPool", async () => {
+    const poolFindMany = vi.fn();
+    const tx = createMockTx({
+      pokemonPool: { findMany: poolFindMany },
+      ownedPokemon: {
+        findMany: vi.fn().mockResolvedValue([{ pokemonId: "pk1" }]),
+      },
+    });
+
+    const cache = new Set(["pk1", "pk2"]);
+    const count = await countOwnedInContest(tx, "contest-1", "player-1", cache);
+
+    expect(count).toBe(1);
+    expect(poolFindMany).not.toHaveBeenCalled();
+  });
+
+  it("池子为空时返回 0", async () => {
+    const tx = createMockTx({
+      pokemonPool: { findMany: vi.fn().mockResolvedValue([]) },
+      ownedPokemon: {
+        findMany: vi.fn().mockResolvedValue([{ pokemonId: "pk1" }]),
+      },
+    });
+
+    const count = await countOwnedInContest(tx, "contest-1", "player-1");
+    expect(count).toBe(0);
+  });
+});
+
+// ─── countOwnedInContestBatch ───────────────────────────────────────
+
+describe("countOwnedInContestBatch", () => {
+  it("正确批量统计多个玩家", async () => {
+    const tx = createMockTx({
+      pokemonPool: {
+        findMany: vi
+          .fn()
+          .mockResolvedValue([
+            { pokemonId: "pk1" },
+            { pokemonId: "pk2" },
+            { pokemonId: "pk3" },
+          ]),
+      },
+      ownedPokemon: {
+        findMany: vi.fn().mockResolvedValue([
+          { playerId: "p1", pokemonId: "pk1" },
+          { playerId: "p1", pokemonId: "pk9" }, // 不在池中
+          { playerId: "p2", pokemonId: "pk1" },
+          { playerId: "p2", pokemonId: "pk2" },
+          { playerId: "p2", pokemonId: "pk3" },
+          { playerId: "p3", pokemonId: "pk9" }, // 不在池中
+        ]),
+      },
+    });
+
+    const counts = await countOwnedInContestBatch(tx, "contest-1", [
+      "p1",
+      "p2",
+      "p3",
+    ]);
+
+    expect(counts.get("p1")).toBe(1);
+    expect(counts.get("p2")).toBe(3);
+    expect(counts.get("p3")).toBe(0);
+  });
+
+  it("空玩家列表返回空 Map", async () => {
+    const tx = createMockTx();
+
+    const counts = await countOwnedInContestBatch(tx, "contest-1", []);
+    expect(counts.size).toBe(0);
+  });
+
+  it("空池子时所有计数为 0", async () => {
+    const tx = createMockTx({
+      pokemonPool: { findMany: vi.fn().mockResolvedValue([]) },
+      ownedPokemon: {
+        findMany: vi.fn().mockResolvedValue([
+          { playerId: "p1", pokemonId: "pk1" },
+          { playerId: "p2", pokemonId: "pk2" },
+        ]),
+      },
+    });
+
+    const counts = await countOwnedInContestBatch(tx, "contest-1", [
+      "p1",
+      "p2",
+    ]);
+
+    expect(counts.get("p1")).toBe(0);
+    expect(counts.get("p2")).toBe(0);
+  });
+
+  it("传入 poolIdsCache 时不查询 pokemonPool", async () => {
+    const poolFindMany = vi.fn();
+    const tx = createMockTx({
+      pokemonPool: { findMany: poolFindMany },
+      ownedPokemon: {
+        findMany: vi.fn().mockResolvedValue([
+          { playerId: "p1", pokemonId: "pk1" },
+          { playerId: "p2", pokemonId: "pk2" },
+        ]),
+      },
+    });
+
+    const cache = new Set(["pk1"]);
+    const counts = await countOwnedInContestBatch(
+      tx,
+      "contest-1",
+      ["p1", "p2"],
+      cache,
+    );
+
+    expect(counts.get("p1")).toBe(1);
+    expect(counts.get("p2")).toBe(0);
+    expect(poolFindMany).not.toHaveBeenCalled();
+  });
+});
+
+// ─── findNextValidTurn ──────────────────────────────────────────────
+
+describe("findNextValidTurn", () => {
+  /** 构造 findNextValidTurn 专用的 mock tx */
+  function createFindNextTx(
+    poolPokemonIds: string[],
+    ownedByPlayer: { playerId: string; pokemonId: string }[],
+    players: { id: string; tokens: number }[],
+  ) {
+    return createMockTx({
+      pokemonPool: {
+        findMany: vi
+          .fn()
+          .mockResolvedValue(poolPokemonIds.map((id) => ({ pokemonId: id }))),
+      },
+      ownedPokemon: {
+        findMany: vi.fn().mockResolvedValue(ownedByPlayer),
+      },
+      player: {
+        findMany: vi.fn().mockResolvedValue(players),
+      },
+    });
+  }
+
+  it("跳过已满员玩家", async () => {
+    // p1 拥有 6 只（已满），p2 拥有 3 只
+    const tx = createFindNextTx(
+      ["pk1", "pk2", "pk3", "pk4", "pk5", "pk6", "pk7"],
+      [
         { playerId: "p1", pokemonId: "pk1" },
-        { playerId: "p1", pokemonId: "pk9" }, // 不在池子
-        { playerId: "p2", pokemonId: "pk1" },
+        { playerId: "p1", pokemonId: "pk2" },
+        { playerId: "p1", pokemonId: "pk3" },
+        { playerId: "p1", pokemonId: "pk4" },
+        { playerId: "p1", pokemonId: "pk5" },
+        { playerId: "p1", pokemonId: "pk6" },
+        { playerId: "p2", pokemonId: "pk7" },
+      ],
+      [
+        { id: "p1", tokens: 100 },
+        { id: "p2", tokens: 100 },
+      ],
+    );
+
+    const result = await findNextValidTurn(
+      tx,
+      "contest-1",
+      0,
+      ["p1", "p2"],
+      6,
+      10,
+    );
+
+    expect(result.turn).toBe(1); // p2
+    expect(result.shouldComplete).toBe(false);
+  });
+
+  it("跳过代币不足玩家", async () => {
+    const tx = createFindNextTx(
+      ["pk1"],
+      [],
+      [
+        { id: "p1", tokens: 5 }, // 不足 basePrice=10
+        { id: "p2", tokens: 100 },
+      ],
+    );
+
+    const result = await findNextValidTurn(
+      tx,
+      "contest-1",
+      0,
+      ["p1", "p2"],
+      6,
+      10,
+    );
+
+    expect(result.turn).toBe(1); // p2
+    expect(result.shouldComplete).toBe(false);
+  });
+
+  it("所有玩家都无法继续时返回 shouldComplete: true", async () => {
+    // 全部满员
+    const tx = createFindNextTx(
+      ["pk1", "pk2"],
+      [
+        { playerId: "p1", pokemonId: "pk1" },
         { playerId: "p2", pokemonId: "pk2" },
+      ],
+      [
+        { id: "p1", tokens: 100 },
+        { id: "p2", tokens: 100 },
+      ],
+    );
+
+    const result = await findNextValidTurn(
+      tx,
+      "contest-1",
+      0,
+      ["p1", "p2"],
+      1, // maxPokemon=1，每人只能选 1 只
+      10,
+    );
+
+    expect(result.shouldComplete).toBe(true);
+  });
+
+  it("蛇形顺序（draftOrder 含重复 ID）", async () => {
+    // p1 满员，p2 满员，p3 可用
+    const tx = createFindNextTx(
+      ["pk1", "pk2", "pk3", "pk4", "pk5", "pk6", "pk7"],
+      [
+        { playerId: "p1", pokemonId: "pk1" },
+        { playerId: "p1", pokemonId: "pk2" },
         { playerId: "p2", pokemonId: "pk3" },
-        { playerId: "p3", pokemonId: "pk9" }, // 不在池子
-      ];
+        { playerId: "p2", pokemonId: "pk4" },
+      ],
+      [
+        { id: "p1", tokens: 100 },
+        { id: "p2", tokens: 100 },
+        { id: "p3", tokens: 100 },
+      ],
+    );
 
-      // 模拟批量统计逻辑
-      const counts = new Map<string, number>();
-      playerIds.forEach((pid) => counts.set(pid, 0));
+    const draftOrder = ["p1", "p2", "p3", "p3", "p2", "p1"];
+    const result = await findNextValidTurn(
+      tx,
+      "contest-1",
+      0,
+      draftOrder,
+      2, // maxPokemon=2
+      10,
+    );
 
-      for (const item of mockOwned) {
-        if (contestPoolIds.has(item.pokemonId)) {
-          const current = counts.get(item.playerId) || 0;
-          counts.set(item.playerId, current + 1);
-        }
-      }
-
-      // Then
-      expect(counts.get("p1")).toBe(1);
-      expect(counts.get("p2")).toBe(3);
-      expect(counts.get("p3")).toBe(0);
-    });
-
-    it("应该正确处理空玩家列表", () => {
-      // Given
-      const playerIds: string[] = [];
-      const contestPoolIds = new Set(["pk1"]);
-
-      // 模拟逻辑
-      const counts = new Map<string, number>();
-      playerIds.forEach((pid) => counts.set(pid, 0));
-
-      // Then
-      expect(counts.size).toBe(0);
-    });
-
-    it("应该正确处理空池子", () => {
-      // Given
-      const playerIds = ["p1", "p2"];
-      const contestPoolIds = new Set<string>();
-      const mockOwned = [
-        { playerId: "p1", pokemonId: "pk1" },
-        { playerId: "p2", pokemonId: "pk2" },
-      ];
-
-      // 模拟逻辑
-      const counts = new Map<string, number>();
-      playerIds.forEach((pid) => counts.set(pid, 0));
-
-      for (const item of mockOwned) {
-        if (contestPoolIds.has(item.pokemonId)) {
-          const current = counts.get(item.playerId) || 0;
-          counts.set(item.playerId, current + 1);
-        }
-      }
-
-      // Then - 池子为空，所有计数都应该是 0
-      expect(counts.get("p1")).toBe(0);
-      expect(counts.get("p2")).toBe(0);
-    });
+    // p1 已满(2)，p2 已满(2)，p3 可用 → turn=2
+    expect(result.turn).toBe(2);
+    expect(result.shouldComplete).toBe(false);
   });
 
-  describe("executeAuctionFinalize - 结算逻辑边界", () => {
-    it("应该正确计算下一个回合", () => {
-      // Given - 剩余池子有不同底价
-      const remainingPool = [
-        { basePrice: 10 },
-        { basePrice: 5 },
-        { basePrice: 20 },
-      ];
+  it("从非零 startTurn 开始查找", async () => {
+    const tx = createFindNextTx(
+      ["pk1"],
+      [],
+      [
+        { id: "p1", tokens: 100 },
+        { id: "p2", tokens: 100 },
+        { id: "p3", tokens: 100 },
+      ],
+    );
 
-      // 模拟计算最低池底价逻辑
-      const minPoolPrice = Math.max(
-        1,
-        Math.min(...remainingPool.map((p) => p.basePrice)),
-      );
+    const result = await findNextValidTurn(
+      tx,
+      "contest-1",
+      5,
+      ["p1", "p2", "p3"],
+      6,
+      10,
+    );
 
-      // Then
-      expect(minPoolPrice).toBe(5);
+    // startTurn=5, draftOrder.length=3, 5 % 3 = 2 → p3
+    expect(result.turn).toBe(5);
+    expect(result.shouldComplete).toBe(false);
+  });
+
+  it("环绕（wrap-around）查找", async () => {
+    // p1 不可用（代币不足），p2 不可用（满员），p3 可用
+    const tx = createFindNextTx(
+      ["pk1", "pk2"],
+      [{ playerId: "p2", pokemonId: "pk1" }],
+      [
+        { id: "p1", tokens: 5 }, // 不足
+        { id: "p2", tokens: 100 },
+        { id: "p3", tokens: 100 },
+      ],
+    );
+
+    // startTurn=1 → draftOrder[1]=p2(满员, maxPokemon=1) → draftOrder[2]=p3(可用)
+    const result = await findNextValidTurn(
+      tx,
+      "contest-1",
+      1,
+      ["p1", "p2", "p3"],
+      1,
+      10,
+    );
+
+    expect(result.turn).toBe(2);
+    expect(result.shouldComplete).toBe(false);
+  });
+});
+
+// ─── executeAuctionFinalize ─────────────────────────────────────────
+
+describe("executeAuctionFinalize", () => {
+  /** 构造一个默认可正常结算的 mock prisma，可按需覆盖 */
+  function createFinalizePrisma(txOverrides: Record<string, any> = {}) {
+    const defaultContest = {
+      id: "contest-1",
+      auctionPhase: "BIDDING",
+      activePokemonId: "pool-1",
+      highestBid: 20,
+      highestBidderId: "player-1",
+      bidEndTime: new Date(Date.now() - 10000), // 已过期
+      currentTurn: 0,
+      draftOrder: ["player-1", "player-2"],
+      maxPokemonPerPlayer: 6,
+      version: 1,
+      auctionBasePrice: 10,
+    };
+
+    const defaultWinner = { id: "player-1", tokens: 100 };
+
+    const defaultPoolItem = {
+      id: "pool-1",
+      pokemonId: "poke-1",
+      status: "AVAILABLE",
+      basePrice: 10,
+      pokemon: { name: "Pikachu", nameCn: "皮卡丘" },
+    };
+
+    const innerTx = createMockTx({
+      $queryRaw: vi
+        .fn()
+        // 第一次调用：查 Contest
+        .mockResolvedValueOnce([txOverrides.contest ?? defaultContest])
+        // 第二次调用：查 Winner Player
+        .mockResolvedValueOnce([txOverrides.winner ?? defaultWinner]),
+      pokemonPool: {
+        findMany: vi.fn().mockImplementation(({ where }) => {
+          // countOwnedInContest 调用（查 pool pokemonIds）
+          if (where && !where.status) {
+            return Promise.resolve([{ pokemonId: "poke-1" }]);
+          }
+          // 查剩余可用池
+          return Promise.resolve(
+            txOverrides.remainingPool ?? [{ basePrice: 10 }],
+          );
+        }),
+        findUnique: vi
+          .fn()
+          .mockResolvedValue(txOverrides.poolItem ?? defaultPoolItem),
+        update: vi.fn().mockResolvedValue({}),
+      },
+      ownedPokemon: {
+        findMany: vi.fn().mockResolvedValue(txOverrides.ownedPokemon ?? []),
+        create: vi.fn().mockResolvedValue({}),
+      },
+      player: {
+        findMany: vi.fn().mockResolvedValue(
+          txOverrides.players ?? [
+            { id: "player-1", tokens: 80 },
+            { id: "player-2", tokens: 100 },
+          ],
+        ),
+        update: vi.fn().mockResolvedValue({}),
+      },
+      draftAction: { create: vi.fn().mockResolvedValue({}) },
+      $executeRaw: vi.fn().mockResolvedValue(1),
     });
 
-    it("应该确保底价至少为 1", () => {
-      // Given - 所有池子底价都是 0（理论上不应该发生）
-      const remainingPool = [{ basePrice: 0 }, { basePrice: 0 }];
+    // prisma.$transaction 直接执行回调
+    const prisma = {
+      $transaction: vi.fn(async (cb: (tx: any) => any) => cb(innerTx)),
+    };
 
-      // 模拟逻辑
-      const minPoolPrice = Math.max(
-        1,
-        Math.min(...remainingPool.map((p) => p.basePrice)),
-      );
+    return { prisma, innerTx };
+  }
 
-      // Then - 确保至少为 1
-      expect(minPoolPrice).toBe(1);
+  it("正常结算流程：扣代币、创建 OwnedPokemon、标记 DRAFTED", async () => {
+    const { prisma, innerTx } = createFinalizePrisma();
+
+    const result = await executeAuctionFinalize(prisma, "contest-1");
+
+    expect(result.success).toBe(true);
+    expect(result.winnerId).toBe("player-1");
+    expect(result.pokemonId).toBe("poke-1");
+
+    // 验证扣代币
+    expect(innerTx.player.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "player-1" },
+        data: { tokens: { decrement: 20 } },
+      }),
+    );
+
+    // 验证创建 OwnedPokemon
+    expect(innerTx.ownedPokemon.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          playerId: "player-1",
+          pokemonId: "poke-1",
+          contestId: "contest-1",
+          purchasePrice: 20,
+        }),
+      }),
+    );
+
+    // 验证标记 DRAFTED
+    expect(innerTx.pokemonPool.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "pool-1" },
+        data: { status: "DRAFTED" },
+      }),
+    );
+  });
+
+  it("比赛不存在时抛错", async () => {
+    const prisma = {
+      $transaction: vi.fn(async (cb: (tx: any) => any) => {
+        const tx = createMockTx({
+          $queryRaw: vi.fn().mockResolvedValue([]),
+        });
+        return cb(tx);
+      }),
+    };
+
+    await expect(executeAuctionFinalize(prisma, "nonexistent")).rejects.toThrow(
+      "比赛未找到",
+    );
+  });
+
+  it("非 BIDDING 阶段抛 ALREADY_FINALIZED", async () => {
+    const prisma = {
+      $transaction: vi.fn(async (cb: (tx: any) => any) => {
+        const tx = createMockTx({
+          $queryRaw: vi.fn().mockResolvedValue([
+            {
+              id: "contest-1",
+              auctionPhase: "NOMINATING",
+              activePokemonId: "pool-1",
+            },
+          ]),
+        });
+        return cb(tx);
+      }),
+    };
+
+    await expect(executeAuctionFinalize(prisma, "contest-1")).rejects.toThrow(
+      "ALREADY_FINALIZED",
+    );
+  });
+
+  it("竞价尚未结束时抛错", async () => {
+    const { prisma } = createFinalizePrisma({
+      contest: {
+        id: "contest-1",
+        auctionPhase: "BIDDING",
+        activePokemonId: "pool-1",
+        highestBid: 20,
+        highestBidderId: "player-1",
+        bidEndTime: new Date(Date.now() + 60000), // 未来时间
+        currentTurn: 0,
+        draftOrder: ["player-1"],
+        maxPokemonPerPlayer: 6,
+        version: 1,
+      },
     });
 
-    it("应该正确处理剩余池子为空的情况", () => {
-      // Given
-      const remainingPool: { basePrice: number }[] = [];
+    await expect(executeAuctionFinalize(prisma, "contest-1")).rejects.toThrow(
+      "竞价尚未结束",
+    );
+  });
 
-      // 模拟逻辑
-      let nextTurn: number;
-      let shouldComplete: boolean;
-
-      if (remainingPool.length === 0) {
-        nextTurn = 5; // contest.currentTurn + 1
-        shouldComplete = true;
-      } else {
-        const minPoolPrice = Math.max(
-          1,
-          Math.min(...remainingPool.map((p) => p.basePrice)),
-        );
-        nextTurn = 0;
-        shouldComplete = false;
-      }
-
-      // Then
-      expect(nextTurn).toBe(5);
-      expect(shouldComplete).toBe(true);
+  it("无有效出价时抛错", async () => {
+    const { prisma } = createFinalizePrisma({
+      contest: {
+        id: "contest-1",
+        auctionPhase: "BIDDING",
+        activePokemonId: "pool-1",
+        highestBid: null,
+        highestBidderId: null,
+        bidEndTime: new Date(Date.now() - 10000),
+        currentTurn: 0,
+        draftOrder: ["player-1"],
+        maxPokemonPerPlayer: 6,
+        version: 1,
+      },
     });
+
+    await expect(executeAuctionFinalize(prisma, "contest-1")).rejects.toThrow(
+      "无有效出价",
+    );
+  });
+
+  it("池子为空时 shouldComplete: true", async () => {
+    const { prisma } = createFinalizePrisma({
+      remainingPool: [], // 没有剩余可用池
+    });
+
+    const result = await executeAuctionFinalize(prisma, "contest-1");
+
+    expect(result.isCompleted).toBe(true);
   });
 });

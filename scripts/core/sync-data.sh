@@ -17,9 +17,9 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 echo -e "\n${BLUE}📦 数据同步流程${NC}"
 
-echo -e "\n${BLUE}[1/6] 同步数据库结构...${NC}"
-npx prisma@6 db push --accept-data-loss
-echo -e "${GREEN}✓ 数据库结构已同步${NC}"
+echo -e "\n${BLUE}[1/6] 数据库迁移...${NC}"
+bash "$SCRIPT_DIR/migrate.sh"
+echo -e "${GREEN}✓ 数据库迁移完成${NC}"
 
 echo -e "\n${BLUE}[2/6] 生成 Prisma Client...${NC}"
 npx prisma@6 generate

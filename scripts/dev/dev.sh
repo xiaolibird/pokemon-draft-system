@@ -150,7 +150,9 @@ quick_start() {
             npm install
         fi
         
-        # 生成 Prisma Client（本地）
+        # 数据库迁移 + 生成 Prisma Client（本地）
+        echo "应用数据库迁移..."
+        bash "$SCRIPT_DIR/../core/migrate.sh"
         echo "生成 Prisma Client..."
         npx prisma@6 generate
         

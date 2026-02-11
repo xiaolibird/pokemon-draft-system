@@ -22,8 +22,13 @@ if [ -n "$DATABASE_URL" ]; then
 
     # Check if we should auto-push schema (e.g. in local dev or specific deploy mode)
     if [ "$AUTO_DB_PUSH" = "true" ]; then
-        echo ">>> [AUTO_DB_PUSH=true] Pushing DB schema..."
-        npx prisma@6 db push --accept-data-loss
+        echo ">>> [AUTO_DB_PUSH=true] 执行智能迁移..."
+        if command -v bash >/dev/null 2>&1; then
+            bash scripts/core/migrate.sh
+        else
+            echo ">>> bash 不可用，回退到 db push..."
+            npx prisma@6 db push --accept-data-loss
+        fi
     fi
 
     # Always ensure client is generated for the current platform (Skip in production standalone to avoid crashes)

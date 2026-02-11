@@ -226,16 +226,17 @@ hot_reload() {
         echo '>>> 清理旧镜像...'
         sudo docker image prune -f
         
-        echo '>>> 健康检查...'
-        sleep 5
-        
-        # 检查健康端点
-        HEALTH_CHECK=\$(curl -sf http://localhost:8080/api/health)
-        if [ \$? -eq 0 ]; then
-            echo '✓ 服务正常运行'
-            echo \"\$HEALTH_CHECK\" | grep -q '\"status\":\"healthy\"' && echo '  数据库连接正常' || echo '  ⚠ 服务降级'
+        echo '>>> 健康检查（最多等待 30 秒）...'
+        HEALTH_CHECK=''
+        for i in \$(seq 1 15); do
+            sleep 2
+            HEALTH_CHECK=\$(curl -sf http://localhost:8080/api/health 2>/dev/null) && break
+            echo \"  等待服务就绪... (\$i/15)\"
+        done
+        if echo \"\$HEALTH_CHECK\" | grep -q '\"status\":\"healthy\"'; then
+            echo '✓ 服务正常运行，数据库连接正常'
         else
-            echo '⚠ 服务可能未就绪，请检查日志'
+            echo '⚠ 服务可能未完全就绪，请检查日志'
         fi
     "
     
@@ -285,22 +286,13 @@ data_sync() {
                 echo \"  ❌ 错误: DATABASE_URL 未设置，无法继续\"
                 exit 1
             fi
-            echo \"[1/5] 应用数据库迁移...\"
-            npx prisma@6 migrate deploy 2>/dev/null || {
-                echo \"  ⚠ 迁移失败，使用 db push 同步架构（适用于现有数据库）\"
-                npx prisma@6 db push --accept-data-loss
-            }
-            
-            echo \"[2/5] 生成 Prisma Client...\"
-            npx prisma@6 generate
-            
-            echo \"[3/5] 执行数据同步流程...\"
+            echo \"[1/3] 执行数据同步流程（含智能迁移）...\"
             bash scripts/core/sync-data.sh
-            
-            echo \"[4/5] 确保管理员账号...\"
+
+            echo \"[2/3] 确保管理员账号...\"
             npx tsx scripts/core/admin/ensure-admin.ts
-            
-            echo \"[5/5] 数据同步完成\"
+
+            echo \"[3/3] 数据同步完成\"
         '
         
         echo '>>> 清理 init 容器镜像（可选）...'
@@ -386,8 +378,6 @@ nuclear_reset() {
                 echo \"  ❌ 错误: DATABASE_URL 未设置，无法继续\"
                 exit 1
             fi
-            npx prisma@6 db push --accept-data-loss
-            npx prisma@6 generate
             bash scripts/core/sync-data.sh
             npx tsx scripts/core/admin/ensure-admin.ts
         '

@@ -552,41 +552,6 @@ function computeFillTeamFixSuggestionsMulti(
 }
 
 /**
- * 计算「无法选满队伍」时的修改建议（单人版，兼容旧调用）
- */
-function computeFillTeamFixSuggestions(
-  tiers: PriceTier[],
-  playerTokens: number,
-  maxPokemon: number,
-): TierFixSuggestion[] {
-  const fullSlots: TierSlot[] = tiers
-    .filter((t) => t.pokemonIds.length > 0)
-    .map((t) => ({ price: t.price, count: t.pokemonIds.length, tierId: t.id }))
-    .sort((a, b) => a.price - b.price);
-  const { cost: minCost } = minCostToPickK(fullSlots, maxPokemon);
-  const shortfall = minCost - playerTokens;
-  if (shortfall <= 0) return [];
-
-  const cheapestTier = [...tiers]
-    .filter((t) => t.pokemonIds.length > 0)
-    .sort((a, b) => a.price - b.price)[0];
-  if (!cheapestTier) return [];
-
-  // 需要增加的「低价位」数量：使最便宜组合总价下降 shortfall
-  // 每只最便宜的可节省 (次低价 - 最低价)，简化：增加 ceil(shortfall / 最低价) 只到最便宜档
-  const addCount = Math.ceil(shortfall / cheapestTier.price);
-  return [
-    {
-      tierName: cheapestTier.name,
-      tierId: cheapestTier.id,
-      action: "add",
-      delta: addCount,
-      reason: `分档 ${cheapestTier.name} 增加 ${addCount} 只，可降低最便宜组合成本约 ${shortfall} 代币，使选满队伍可行`,
-    },
-  ];
-}
-
-/**
  * 保底模式：每个选手都至少有一种方式选满队伍
  * 综合考虑：价格分档、每档个数、选手数
  * 充分条件：池中按价排序后，第 i 个选手拿第 (6i+1)～(6i+6) 便宜，每人总价 ≤ 预算

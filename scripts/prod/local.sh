@@ -67,8 +67,6 @@ echo -e "${GREEN}✓ 数据库已启动${NC}\n"
 echo -e "${BLUE}[4/5] 初始化数据...${NC}"
 sudo -E $DOCKER_COMPOSE -f docker-compose.prod.yml run --rm --entrypoint /bin/sh init -c '
 set -e
-npx prisma@6 db push --accept-data-loss
-npx prisma@6 generate
 bash scripts/core/sync-data.sh
 npx tsx scripts/core/admin/ensure-admin.ts
 '
