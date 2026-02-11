@@ -140,11 +140,15 @@ export async function POST(request: Request) {
 
       // 3. Strict Turn Check（取模避免 currentTurn >= draftOrder.length 时越界）
       if (contest.status !== "ACTIVE") throw new Error("比赛未开始或已结束");
+      // 此端点仅支持蛇形选秀模式，竞拍模式应通过 nominate + bid 流程
+      if (contest.draftMode !== "SNAKE") {
+        throw new Error("此端点仅支持蛇形选秀模式");
+      }
       const draftLen = contest.draftOrder?.length ?? 0;
       const currentSlotPlayerId = draftLen
         ? contest.draftOrder[contest.currentTurn % draftLen]
         : undefined;
-      if (contest.draftMode === "SNAKE" && currentSlotPlayerId !== playerId) {
+      if (currentSlotPlayerId !== playerId) {
         throw new Error("还没轮到你选秀"); // 403
       }
 
@@ -159,9 +163,9 @@ export async function POST(request: Request) {
         throw new Error("已达到宝可梦上限");
       }
 
-      // 4. Strict Pool Item Availability Check
-      const poolItem = await tx.pokemonPool.findUnique({
-        where: { id: pokemonPoolId },
+      // 4. Strict Pool Item Availability Check（校验 pokemonPoolId 属于当前比赛，防止跨比赛注入）
+      const poolItem = await tx.pokemonPool.findFirst({
+        where: { id: pokemonPoolId, contestId: contest.id },
         include: { pokemon: true },
       });
 
@@ -242,6 +246,7 @@ export async function POST(request: Request) {
         data: {
           playerId,
           pokemonId: poolItem.pokemonId,
+          contestId: contest.id,
           purchasePrice: cost,
         },
       });
@@ -332,6 +337,12 @@ export async function POST(request: Request) {
     }
     if (msg.includes("比赛未开始或已结束")) {
       return apiError(msg, "CONTEST_NOT_ACTIVE", { status: 400 });
+    }
+    if (msg.includes("此端点仅支持蛇形选秀模式")) {
+      return apiError(msg, "NOT_SNAKE_MODE", {
+        reason: "draft-pick 端点仅支持 SNAKE 模式",
+        status: 400,
+      });
     }
     if (msg.includes("已达到宝可梦上限") || msg.includes("代币不足")) {
       const isFull = msg.includes("已达到宝可梦上限");

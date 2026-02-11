@@ -234,29 +234,33 @@ export async function sendContestState(
   }
 }
 
+/** 延迟广播任务（throttle 尾部触发） */
+const pendingBroadcasts = new Map<
+  string,
+  ReturnType<typeof setTimeout> | null
+>();
+
 /**
- * Broadcast update to all connected clients for a contest
+ * 实际执行广播
  */
-export async function broadcastContestUpdate(contestId: string) {
+async function doBroadcast(contestId: string) {
   try {
     const connections = contestConnections.get(contestId);
     if (!connections || connections.size === 0) return;
 
-    const now = Date.now();
-    if (now - (lastBroadcastTime.get(contestId) ?? 0) < BROADCAST_THROTTLE_MS)
-      return;
-
     const data = await buildContestStatePayload(contestId, "AUTO");
     if (!data) return;
 
-    const payloadStr = JSON.stringify(data);
+    // 去重：比较时排除 timestamp（timestamp 每次都不同，直接比较永远不等）
+    const { timestamp, ...dataWithoutTs } = data;
+    const payloadStr = JSON.stringify(dataWithoutTs);
     if (lastBroadcastPayload.get(contestId) === payloadStr) return;
 
-    lastBroadcastTime.set(contestId, now);
+    lastBroadcastTime.set(contestId, Date.now());
     lastBroadcastPayload.set(contestId, payloadStr);
 
-    const payload = `data: ${payloadStr}\n\n`;
-    const encoded = new TextEncoder().encode(payload);
+    const fullPayload = `data: ${JSON.stringify(data)}\n\n`;
+    const encoded = new TextEncoder().encode(fullPayload);
 
     for (const controller of [...connections]) {
       try {
@@ -266,7 +270,43 @@ export async function broadcastContestUpdate(contestId: string) {
       }
     }
   } catch (err) {
-    console.error("[broadcastContestUpdate]", contestId, err);
+    console.error("[doBroadcast]", contestId, err);
+  }
+}
+
+/**
+ * Broadcast update to all connected clients for a contest
+ * 使用 throttle + trailing edge：冷却期外立即发送，冷却期内延迟到冷却结束后发送
+ * 保证最后一次更新不会被永久丢弃
+ */
+export async function broadcastContestUpdate(contestId: string) {
+  const connections = contestConnections.get(contestId);
+  if (!connections || connections.size === 0) return;
+
+  // 清除之前的 pending 延迟任务
+  const existing = pendingBroadcasts.get(contestId);
+  if (existing) {
+    clearTimeout(existing);
+    pendingBroadcasts.delete(contestId);
+  }
+
+  const now = Date.now();
+  const lastTime = lastBroadcastTime.get(contestId) ?? 0;
+  const elapsed = now - lastTime;
+
+  if (elapsed >= BROADCAST_THROTTLE_MS) {
+    // 已过冷却期，立即发送
+    await doBroadcast(contestId);
+  } else {
+    // 在冷却期内，延迟到冷却结束后发送（trailing edge）
+    const delay = BROADCAST_THROTTLE_MS - elapsed;
+    pendingBroadcasts.set(
+      contestId,
+      setTimeout(async () => {
+        pendingBroadcasts.delete(contestId);
+        await doBroadcast(contestId);
+      }, delay),
+    );
   }
 }
 

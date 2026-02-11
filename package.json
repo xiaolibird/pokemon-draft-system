@@ -12,7 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:unit": "vitest run app/lib/business/auction.test.ts app/lib/hooks/useDraftTimer.test.ts",
+    "test:unit": "vitest run app/**/*.test.ts",
     "test:skip": "tsx scripts/test/test-skip.ts",
     "test:skip:sh": "bash scripts/test/run-skip.sh",
     "test:sse": "tsx scripts/test/test-sse.ts",
@@ -25,8 +25,6 @@
     "test:functional:sh": "bash scripts/test/run-functional.sh",
     "test:smoke": "tsx scripts/test/test-smoke.ts",
     "test:smoke:sh": "bash scripts/test/run-smoke.sh",
-    "test:validate": "tsx scripts/test/test-validate-pokemon.ts",
-    "test:validate:sh": "bash scripts/test/run-validate-pokemon.sh",
     "test:prod": "bash scripts/test/run-verify-prod.sh",
     "format": "prettier --write .",
     "prepare": "husky"

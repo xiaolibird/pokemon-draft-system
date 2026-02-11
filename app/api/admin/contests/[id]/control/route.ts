@@ -361,35 +361,31 @@ export async function POST(request: Request, context: any) {
         });
       }
 
-      // Bug Fix #3: 验证宝可梦是否仍被该玩家拥有（防止交易后无法撤销）
-      const ownedPokemon = await prisma.ownedPokemon.findFirst({
-        where: {
-          playerId: lastAcquireAction.playerId,
-          pokemonId: lastAcquireAction.pokemonId,
-        },
-      });
-
-      if (!ownedPokemon) {
-        return apiError(
-          "无法撤销：该宝可梦已被交易或状态已变更",
-          "CANNOT_UNDO",
-          {
-            reason: "被撤销的宝可梦已不在原玩家手中",
-            suggestion: "请检查宝可梦交易记录",
-            status: 400,
-          },
-        );
-      }
-
-      // Perform undo in transaction
+      // Perform undo in transaction（存在性检查移入事务内，防止 TOCTOU 竞态）
       const result = await prisma.$transaction(async (tx) => {
-        // 1. Delete the OwnedPokemon record
-        await tx.ownedPokemon.deleteMany({
+        // 1. 在事务内验证宝可梦是否仍被该玩家拥有（防止并发双重退款）
+        const ownedPokemon = await tx.ownedPokemon.findFirst({
           where: {
             playerId: lastAcquireAction.playerId,
             pokemonId: lastAcquireAction.pokemonId,
+            contestId: id,
           },
         });
+        if (!ownedPokemon) {
+          throw new Error("CANNOT_UNDO");
+        }
+
+        // 2. Delete the OwnedPokemon record（验证实际删除条数）
+        const deleted = await tx.ownedPokemon.deleteMany({
+          where: {
+            playerId: lastAcquireAction.playerId,
+            pokemonId: lastAcquireAction.pokemonId,
+            contestId: id,
+          },
+        });
+        if (deleted.count === 0) {
+          throw new Error("CANNOT_UNDO");
+        }
 
         // 2. Restore the pokemon to pool
         await tx.pokemonPool.updateMany({
@@ -525,6 +521,13 @@ export async function POST(request: Request, context: any) {
     return NextResponse.json({ error: "未知操作" }, { status: 400 });
   } catch (error: any) {
     console.error("Admin Control Error:", error);
+    if (error.message === "CANNOT_UNDO") {
+      return apiError("无法撤销：该宝可梦已被交易或状态已变更", "CANNOT_UNDO", {
+        reason: "被撤销的宝可梦已不在原玩家手中",
+        suggestion: "请检查宝可梦交易记录",
+        status: 400,
+      });
+    }
     if (error.message === "CONTEST_VERSION_CONFLICT") {
       return NextResponse.json(
         {

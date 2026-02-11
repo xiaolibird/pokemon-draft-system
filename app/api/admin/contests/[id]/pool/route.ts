@@ -6,6 +6,18 @@ export async function GET(_request: Request, context: any) {
   const { id } = await context.params;
 
   try {
+    // 鉴权：admin 或 player 均可查看
+    const { verifyToken } = await import("@/app/lib/auth/jwt");
+    const { cookies } = await import("next/headers");
+    const cookieStore = await cookies();
+    const adminToken = cookieStore.get("admin_token")?.value;
+    const playerToken = cookieStore.get("player_token")?.value;
+    if (!adminToken && !playerToken)
+      return apiError("未授权", "UNAUTHORIZED", { status: 401 });
+    const token = adminToken || playerToken;
+    const payload = await verifyToken(token!);
+    if (!payload) return apiError("无权操作", "FORBIDDEN", { status: 403 });
+
     const pool = await prisma.pokemonPool.findMany({
       where: { contestId: id },
       include: { pokemon: true },

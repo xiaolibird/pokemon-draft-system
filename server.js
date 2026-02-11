@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 /**
-
  * 自定义 Next.js Server 实现优雅停机
  *
  * 功能:
@@ -9,15 +8,58 @@
  * - 等待现有请求完成
  * - 关闭数据库连接
  * - 清理资源
+ * - 集成 Winston 日志系统
  */
 
 const { createServer } = require("http");
 const { parse } = require("url");
 const next = require("next");
+const winston = require("winston");
+const path = require("path");
+const fs = require("fs");
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = process.env.HOSTNAME || "localhost";
 const port = parseInt(process.env.PORT || "3000", 10);
+
+// Ensure logs directory exists
+const logDir = path.join(__dirname, "logs");
+if (!fs.existsSync(logDir)) {
+  fs.mkdirSync(logDir);
+}
+
+// Configure Winston logger
+const logger = winston.createLogger({
+  level: "info",
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  defaultMeta: { service: "pokemon-draft-server" },
+  transports: [
+    // Write all logs with importance level of `error` or less to `error.log`
+    // Write all logs with importance level of `info` or less to `server-YYYY-MM-DD.log`
+    new winston.transports.File({
+      filename: path.join(logDir, `server-${new Date().toISOString().slice(0, 10)}.log`)
+    }),
+  ],
+});
+
+// If we're not in production then log to the `console` with the format:
+// `${info.level}: ${info.message} JSON.stringify({ ...rest }) `
+if (process.env.NODE_ENV !== "production") {
+  logger.add(new winston.transports.Console({
+    format: winston.format.combine(
+      winston.format.colorize(),
+      winston.format.simple()
+    ),
+  }));
+} else {
+  // In production, also log to console (stdout) for Docker/PM2 to capture
+  logger.add(new winston.transports.Console({
+    format: winston.format.simple()
+  }));
+}
 
 // Next.js app
 const app = next({ dev, hostname, port });
@@ -62,18 +104,18 @@ async function startServer() {
     server.headersTimeout = 66000; // 66秒
 
     server.listen(port, () => {
-      console.log(`✅ Server ready on http://${hostname}:${port}`);
-      console.log(`   Environment: ${dev ? "development" : "production"}`);
-      console.log(`   PID: ${process.pid}`);
+      logger.info(`✅ Server ready on http://${hostname}:${port}`);
+      logger.info(`   Environment: ${dev ? "development" : "production"}`);
+      logger.info(`   PID: ${process.pid}`);
     });
 
     // 错误处理
     server.on("error", (err) => {
-      console.error("Server error:", err);
+      logger.error("Server error:", err);
       process.exit(1);
     });
   } catch (err) {
-    console.error("Failed to start server:", err);
+    logger.error("Failed to start server:", err);
     process.exit(1);
   }
 }
@@ -83,27 +125,27 @@ async function startServer() {
  */
 async function gracefulShutdown(signal) {
   if (isShuttingDown) {
-    console.log("⚠️  Already shutting down, forcing exit...");
+    logger.warn("⚠️  Already shutting down, forcing exit...");
     process.exit(0);
     return;
   }
 
-  console.log(`\n📡 Received ${signal}, starting graceful shutdown...`);
+  logger.info(`\n📡 Received ${signal}, starting graceful shutdown...`);
   isShuttingDown = true;
 
   // 1. 停止接受新连接
   if (server) {
     server.close(() => {
-      console.log("✅ HTTP server closed");
+      logger.info("✅ HTTP server closed");
     });
   }
 
   // 2. 等待活跃连接完成（最多等待30秒）
-  console.log(
+  logger.info(
     `⏳ Waiting for ${activeConnections.size} active connections to finish...`,
   );
   const shutdownTimeout = setTimeout(() => {
-    console.log("⚠️  Shutdown timeout reached, forcing close...");
+    logger.warn("⚠️  Shutdown timeout reached, forcing close...");
     activeConnections.forEach((socket) => socket.destroy());
     process.exit(0);
   }, 30000); // 30秒超时
@@ -122,21 +164,21 @@ async function gracefulShutdown(signal) {
  * 完成停机
  */
 async function finishShutdown() {
-  console.log("✅ All connections closed");
+  logger.info("✅ All connections closed");
 
   // 3. 关闭数据库连接
   try {
     // 使用 app/lib/prisma.ts 中的单例实例
     const { prisma } = require("./app/lib/prisma");
     await prisma.$disconnect();
-    console.log("✅ Database connections closed");
+    logger.info("✅ Database connections closed");
   } catch (err) {
-    console.error("⚠️  Error closing database:", err);
+    logger.error("⚠️  Error closing database:", err);
   }
 
   // 4. 清理其他资源
-  console.log("✅ Cleanup completed");
-  console.log("👋 Goodbye!");
+  logger.info("✅ Cleanup completed");
+  logger.info("👋 Goodbye!");
 
   process.exit(0);
 }
@@ -147,12 +189,12 @@ process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
 // 未捕获的异常处理
 process.on("uncaughtException", (err) => {
-  console.error("❌ Uncaught Exception:", err);
+  logger.error("❌ Uncaught Exception:", err);
   gracefulShutdown("UNCAUGHT_EXCEPTION");
 });
 
 process.on("unhandledRejection", (reason, promise) => {
-  console.error("❌ Unhandled Rejection at:", promise, "reason:", reason);
+  logger.error("❌ Unhandled Rejection at:", promise, "reason:", reason);
   gracefulShutdown("UNHANDLED_REJECTION");
 });
 

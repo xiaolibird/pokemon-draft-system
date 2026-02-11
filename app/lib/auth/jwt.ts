@@ -5,13 +5,9 @@ const getSecretKey = () => {
   const secret = process.env.JWT_SECRET;
   if (!secret) {
     if (process.env.NODE_ENV === "production") {
-      // 仅在运行时且缺少密钥时抛出警告（避免构建时误报）
-      if (typeof window === "undefined") {
-        console.warn(
-          "⚠️ WARNING: JWT_SECRET is not set in production environment variables.",
-        );
-      }
-      return "production-fallback-secret-DO-NOT-USE";
+      throw new Error(
+        "FATAL: JWT_SECRET is not set in production. Server cannot start.",
+      );
     }
     return "dev-only-insecure-secret";
   }

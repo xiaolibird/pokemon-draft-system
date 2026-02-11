@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/db/prisma";
+import { verifyToken } from "@/app/lib/auth/jwt";
+import { cookies } from "next/headers";
 import { apiError } from "@/app/lib/errors";
 
 export async function PATCH(
@@ -7,6 +9,14 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    // Admin 鉴权
+    const cookieStore = await cookies();
+    const token = cookieStore.get("admin_token")?.value;
+    if (!token) return apiError("未授权", "UNAUTHORIZED", { status: 401 });
+    const payload = await verifyToken(token);
+    if (!payload || payload.role !== "admin")
+      return apiError("无权操作", "FORBIDDEN", { status: 403 });
+
     const { basePrice } = await req.json();
     const { id: contestId } = await params;
 

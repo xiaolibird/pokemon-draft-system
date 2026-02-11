@@ -171,6 +171,7 @@ export async function executeAuctionFinalize(prisma: any, contestId: string) {
       data: {
         playerId: contest.highestBidderId,
         pokemonId: poolItem.pokemonId,
+        contestId,
         purchasePrice: contest.highestBid,
       },
     });

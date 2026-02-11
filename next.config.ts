@@ -3,7 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: "standalone",
   // 生产构建优化：跳过类型检查和 Lint（本地已通过 Check，VPS 仅负责打包）
-  // @ts-ignore - Valid config in Next.js 15+, but types might be lagging
+  // @ts-expect-error - Valid config in Next.js 15+, but types might be lagging
   eslint: {
     ignoreDuringBuilds: true,
   },

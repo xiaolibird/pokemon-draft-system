@@ -188,21 +188,33 @@ export const DraftService = {
       }
     }
 
-    // Transaction
+    // Transaction — 带状态条件防止并发双击覆盖
     await prisma.$transaction(async (tx) => {
-      // Update Contest
-      await tx.contest.update({
-        where: { id: contest.id },
-        data: {
-          status: "ACTIVE",
-          draftOrder,
-          currentTurn: 0,
-          auctionPhase: contest.draftMode === "AUCTION" ? "NOMINATING" : null,
-          activePokemonId: null,
-          highestBid: null,
-          highestBidderId: null,
-        },
-      });
+      const auctionPhase =
+        contest.draftMode === "AUCTION" ? "NOMINATING" : null;
+
+      // 使用 WHERE status = 'PENDING' 确保只有未开始的比赛才能被启动
+      const updated = await tx.$executeRaw`
+        UPDATE "Contest"
+        SET "status" = 'ACTIVE',
+            "draftOrder" = ${draftOrder},
+            "currentTurn" = 0,
+            "auctionPhase" = ${auctionPhase},
+            "activePokemonId" = NULL,
+            "highestBid" = NULL,
+            "highestBidderId" = NULL
+        WHERE "id" = ${contest.id} AND "status" = 'PENDING'
+      `;
+
+      if (updated === 0) {
+        throw new DraftError(
+          "比赛已开始或状态已变更",
+          "CONTEST_ALREADY_STARTED",
+          "比赛状态已不是 PENDING",
+          "请刷新页面查看最新状态",
+          409,
+        );
+      }
 
       // Update Player Pick Orders
       for (let i = 0; i < playerIds.length; i++) {

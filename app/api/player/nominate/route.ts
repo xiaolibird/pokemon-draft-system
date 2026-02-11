@@ -151,9 +151,9 @@ export async function POST(request: Request) {
         };
       }
 
-      // 4. Validate Pokemon
-      const poolItem = await tx.pokemonPool.findUnique({
-        where: { id: pokemonPoolId },
+      // 4. Validate Pokemon（校验 pokemonPoolId 属于当前比赛，防止跨比赛注入）
+      const poolItem = await tx.pokemonPool.findFirst({
+        where: { id: pokemonPoolId, contestId: contest.id },
       });
 
       if (!poolItem || poolItem.status !== "AVAILABLE") {

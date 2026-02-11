@@ -16,6 +16,13 @@ export async function GET(request: Request, context: any) {
       return apiError("未授权", "UNAUTHORIZED", { status: 401 });
     }
 
+    // 验证 JWT 签名（防止伪造 cookie 值绕过鉴权）
+    const token = adminToken || playerToken;
+    const payload = await verifyToken(token!);
+    if (!payload) {
+      return apiError("登录已过期", "TOKEN_EXPIRED", { status: 401 });
+    }
+
     const actions = await prisma.draftAction.findMany({
       where: { contestId: id },
       include: {

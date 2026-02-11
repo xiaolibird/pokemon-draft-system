@@ -55,37 +55,7 @@ export async function POST(request: Request) {
       });
     }
 
-    // 1. Create the Contest
-    console.log("[DEBUG] 1. Creating contest record...");
-    let contest;
-    try {
-      contest = await prisma.contest.create({
-        data: {
-          name,
-          ruleSet,
-          playerTokens: Number(playerTokens) || 100,
-          maxPokemonPerPlayer: Number(maxPokemonPerPlayer) || 6,
-          draftMode,
-          auctionBasePrice: Number(auctionBasePrice) || 10,
-          auctionBidDuration:
-            auctionBidDuration === 0 || auctionBidDuration === "0"
-              ? 0
-              : Number(auctionBidDuration) || 30,
-          showPlayerPokemon: showPlayerPokemon ?? true,
-          playerDisplayStyle: playerDisplayStyle || "minimal",
-          allowTradingDuringDraft: allowTradingDuringDraft ?? false,
-          status: "PENDING",
-          adminId: payload.id as string,
-        } as any,
-      });
-      console.log("[DEBUG] Contest created successfully with ID:", contest.id);
-    } catch (err: any) {
-      console.error("[DEBUG] FAILED at Step 1 (Create Contest):", err.message);
-      throw new Error(`Failed to create contest record: ${err.message}`);
-    }
-
-    // 2. Filter Pokemon based on criteria
-    console.log("[DEBUG] 2. Filtering pokemon pool...");
+    // 构建筛选条件（纯 JS 计算，不涉及数据库）
     const {
       minHP,
       maxHP,
@@ -246,54 +216,67 @@ export async function POST(request: Request) {
       whereClause.AND = andClauses;
     }
 
-    let filteredPokemon;
-    try {
-      filteredPokemon = await prisma.pokemon.findMany({
+    const defaultBasePrice = Math.max(1, Number(auctionBasePrice) || 10);
+
+    // 原子事务：比赛创建 + 筛选宝可梦 + 池创建（防止孤儿比赛）
+    const { contest, poolSize } = await prisma.$transaction(async (tx) => {
+      // 1. Create the Contest
+      console.log("[DEBUG] 1. Creating contest record...");
+      const contest = await tx.contest.create({
+        data: {
+          name,
+          ruleSet,
+          playerTokens: Number(playerTokens) || 100,
+          maxPokemonPerPlayer: Number(maxPokemonPerPlayer) || 6,
+          draftMode,
+          auctionBasePrice: Number(auctionBasePrice) || 10,
+          auctionBidDuration:
+            auctionBidDuration === 0 || auctionBidDuration === "0"
+              ? 0
+              : Number(auctionBidDuration) || 30,
+          showPlayerPokemon: showPlayerPokemon ?? true,
+          playerDisplayStyle: playerDisplayStyle || "minimal",
+          allowTradingDuringDraft: allowTradingDuringDraft ?? false,
+          status: "PENDING",
+          adminId: payload.id as string,
+        } as any,
+      });
+      console.log("[DEBUG] Contest created successfully with ID:", contest.id);
+
+      // 2. Filter Pokemon based on criteria
+      console.log("[DEBUG] 2. Filtering pokemon pool...");
+      const filteredPokemon = await tx.pokemon.findMany({
         where: whereClause,
         orderBy: [{ bst: "desc" }, { gen: "desc" }, { num: "asc" }],
       });
       console.log(
         `[DEBUG] Found ${filteredPokemon.length} pokemon for the pool`,
       );
-    } catch (findErr: any) {
-      console.error(
-        "[DEBUG] FAILED at Step 2 (Find Pokemon):",
-        findErr.message,
-      );
-      throw new Error(`Failed to filter pokemon: ${findErr.message}`);
-    }
 
-    // 3. Create PokemonPool entries（底价绝不为 0，使用比赛统一底价或默认 10）
-    const defaultBasePrice = Math.max(1, Number(auctionBasePrice) || 10);
-    console.log("[DEBUG] 3. Creating pool entries...");
-    const poolEntries = filteredPokemon.map((p) => ({
-      id: crypto.randomUUID(),
-      contestId: contest.id,
-      pokemonId: p.id,
-      basePrice: defaultBasePrice,
-      status: "AVAILABLE",
-    }));
+      // 3. Create PokemonPool entries（底价绝不为 0，使用比赛统一底价或默认 10）
+      console.log("[DEBUG] 3. Creating pool entries...");
+      const poolEntries = filteredPokemon.map((p) => ({
+        id: crypto.randomUUID(),
+        contestId: contest.id,
+        pokemonId: p.id,
+        basePrice: defaultBasePrice,
+        status: "AVAILABLE",
+      }));
 
-    if (poolEntries.length > 0) {
-      try {
-        // Batch size to avoid parameter limits if somehow we have huge pools
-        await prisma.pokemonPool.createMany({
+      if (poolEntries.length > 0) {
+        await tx.pokemonPool.createMany({
           data: poolEntries,
         });
         console.log("[DEBUG] Pool entries created successfully");
-      } catch (poolErr: any) {
-        console.error(
-          "[DEBUG] FAILED at Step 3 (Create Pool):",
-          poolErr.message,
-        );
-        throw new Error(`Failed to populate pool: ${poolErr.message}`);
       }
-    }
+
+      return { contest, poolSize: poolEntries.length };
+    });
 
     return NextResponse.json({
       success: true,
       contestId: contest.id,
-      poolSize: poolEntries.length,
+      poolSize,
     });
   } catch (error: any) {
     console.error("!!! CONTEST CREATION ERROR !!!");

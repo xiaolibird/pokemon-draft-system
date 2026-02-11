@@ -16,33 +16,34 @@ model Admin {
 }
 
 model Contest {
-  id                      String        @id @default(uuid())
+  id                      String         @id @default(uuid())
   name                    String
   status                  String
   ruleSet                 String
-  playerTokens            Int           @default(100)
-  maxPokemonPerPlayer     Int           @default(6)
+  playerTokens            Int            @default(100)
+  maxPokemonPerPlayer     Int            @default(6)
   draftMode               String
-  auctionBasePrice        Int           @default(10)
+  auctionBasePrice        Int            @default(10)
   priceTiers              Json?
-  currentTurn             Int           @default(0)
-  draftOrder              String[]      @default([])
+  currentTurn             Int            @default(0)
+  draftOrder              String[]       @default([])
   auctionPhase            String?
   activePokemonId         String?
-  auctionBidDuration      Int?          @default(30)
+  auctionBidDuration      Int?           @default(30)
   highestBid              Int?
   highestBidderId         String?
   bidEndTime              DateTime?
-  showPlayerPokemon       Boolean       @default(true)
-  playerDisplayStyle      String        @default("minimal")
-  allowTradingDuringDraft Boolean       @default(false)
-  createdAt               DateTime      @default(now())
+  showPlayerPokemon       Boolean        @default(true)
+  playerDisplayStyle      String         @default("minimal")
+  allowTradingDuringDraft Boolean        @default(false)
+  createdAt               DateTime       @default(now())
   adminId                 String
-  version                 Int           @default(0)
-  isPaused                Boolean       @default(false)
+  version                 Int            @default(0)
+  isPaused                Boolean        @default(false)
   pausedTimeRemaining     Int?
-  admin                   Admin         @relation(fields: [adminId], references: [id])
+  admin                   Admin          @relation(fields: [adminId], references: [id])
   draftActions            DraftAction[]
+  ownedPokemon            OwnedPokemon[]
   players                 Player[]
   pokemonPool             PokemonPool[]
 }
@@ -113,11 +114,13 @@ model OwnedPokemon {
   id            String  @id @default(uuid())
   playerId      String
   pokemonId     String
+  contestId     String
   purchasePrice Int?
   player        Player  @relation(fields: [playerId], references: [id])
   pokemon       Pokemon @relation(fields: [pokemonId], references: [id])
+  contest       Contest @relation(fields: [contestId], references: [id])
 
-  @@unique([playerId, pokemonId])
+  @@unique([playerId, pokemonId, contestId])
   @@index([playerId])
   @@index([pokemonId])
 }
